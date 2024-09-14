@@ -27,7 +27,7 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
     # scaler = torch.cuda.amp.GradScaler()
 
     # Load constants and teleconnection indices
-    aux_constants = utils.loadAllConstants(
+    aux_constants = utils_data.loadAllConstants(
         device=device)  # 'weather_statistics','weather_statistics_last','constant_maps','tele_indices','variable_weights'
     upper_weights, surface_weights = aux_constants['variable_weights']
 
