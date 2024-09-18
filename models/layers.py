@@ -114,9 +114,9 @@ class EarthSpecificLayer(nn.Module):
       i+=1
       if self.use_checkpoint:
         if i % 2 == 0:
-          x = checkpoint.checkpoint(blk, x, Z, H, W, False)
+          x = checkpoint.checkpoint(blk, x, Z, H, W, False, use_reentrant=False)
         else:
-          x = checkpoint.checkpoint(blk, x, Z, H, W, True)
+          x = checkpoint.checkpoint(blk, x, Z, H, W, True, use_reentrant=False)
       else:
           if i % 2 == 0:
             x = blk(x, Z, H, W, roll=False)

@@ -4,7 +4,7 @@ from torch import nn
 import torch
 from models.layers import *
 from collections import OrderedDict
-import torch.utils.checkpoint as checkpoint
+# import torch.utils.checkpoint as checkpoint
 class PanguModel(nn.Module):
   def __init__(self, depths = [2,6,6,2], num_heads = [6, 12, 12, 6], dims = [192, 384, 384, 192], patch_size = (2, 4, 4), device=None):
     super(PanguModel, self).__init__()

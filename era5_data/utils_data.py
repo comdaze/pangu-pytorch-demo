@@ -12,6 +12,7 @@ import random
 from torch.utils import data
 from torchvision import transforms as T
 import os
+import time
 
 class DataPrefetcher():
     def __init__(self, loader):
@@ -94,6 +95,9 @@ class NetCDFDataset(data.Dataset):
             # self.keys = (list(set(self.keys)))
             # end_time = self.keys[0] + timedelta(hours = self.horizon)
         self.length = len(self.keys) - horizon // 12 - 1
+        
+        print('self.keys:', self.keys)
+        print('self.length:', self.length)
 
         random.seed(seed)
 
@@ -104,6 +108,8 @@ class NetCDFDataset(data.Dataset):
         Return
             numpy array upper, surface
         """
+        
+        nctonumpy_start = time.time()
 
         upper_z = dataset_upper['z'].values.astype(np.float32)  # (13,721,1440)
         upper_q = dataset_upper['q'].values.astype(np.float32)
@@ -123,6 +129,9 @@ class NetCDFDataset(data.Dataset):
         surface = np.concatenate((surface_mslp[np.newaxis, ...], surface_u10[np.newaxis, ...],
                                   surface_v10[np.newaxis, ...], surface_t2m[np.newaxis, ...]), axis=0)
         assert surface.shape == (4, 721, 1440)
+        
+        nctonumpy_end = time.time()
+        print('nctonumpy time:', nctonumpy_end-nctonumpy_start)
 
         return upper, surface
 
@@ -146,8 +155,8 @@ class NetCDFDataset(data.Dataset):
         end_time = key + timedelta(hours=self.horizon)
         end_time_str = end_time.strftime('%Y%m%d%H')
         
-        # print('start_time_str:', start_time_str)
-        # print('end_time_str:', end_time_str)
+        print('start_time_str:', start_time_str)
+        print('end_time_str:', end_time_str)
 
         # Prepare the input_surface dataset
         # print(start_time_str[0:6])
@@ -206,7 +215,10 @@ class NetCDFDataset(data.Dataset):
         """Return input frames, target frames, and its corresponding time steps."""
         if self.training:
             iii = self.keys[index]
+            LoadData_start = time.time()
             input, input_surface, target, target_surface, periods = self.LoadData(iii)
+            LoadData_end = time.time()
+            print('LoadData time:', LoadData_end-LoadData_start)
 
             if self.data_transform is not None:
                 input = self.data_transform(input)

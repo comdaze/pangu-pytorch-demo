@@ -1,5 +1,5 @@
 import sys
-sys.path.append("/home/code/pangu_torch")
+sys.path.append("/home/ec2-user/pangu-pytorch")
 from era5_data import utils, utils_data
 from era5_data.utils_dist import get_dist_info, init_dist
 from era5_data.config import cfg
@@ -34,7 +34,7 @@ if __name__ == "__main__":
 
     PATH = cfg.PG_INPUT_PATH
 
-    opt = {"gpu_ids": [7]}
+    opt = {"gpu_ids": [0]}
     gpu_list = ','.join(str(x) for x in opt['gpu_ids'])
     # gpu_list = str(opt['gpu_ids'])
     os.environ['CUDA_VISIBLE_DEVICES'] = gpu_list
