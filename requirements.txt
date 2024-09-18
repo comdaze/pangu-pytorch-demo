@@ -2,3 +2,4 @@ timm
 tensorboardX
 xarray
 netcdf4
+peft

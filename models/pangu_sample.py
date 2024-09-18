@@ -7,6 +7,7 @@ import torch
 import copy
 from era5_data import score
 import os
+from tqdm import tqdm
 
 def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, device, writer, logger, start_epoch,
           rank=0):
@@ -35,7 +36,8 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
     for i in range(start_epoch, epochs + 1):
         epoch_loss = 0.0
 
-        for id, train_data in enumerate(train_loader):
+        # for id, train_data in enumerate(train_loader):
+        for train_data in tqdm(train_loader):
             # Load weather data at time t as the input; load weather data at time t+336 as the output
             # Note the data need to be randomly shuffled
             input, input_surface, target, target_surface, periods = train_data
