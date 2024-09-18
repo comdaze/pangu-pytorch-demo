@@ -33,7 +33,7 @@ __C.PG = edict()
 
 __C.PG.TRAIN = edict()
 
-__C.PG.HORIZON = 24
+__C.PG.HORIZON = 24  # 表示预测时间范围或预测步数
 
 __C.PG.TRAIN.EPOCHS = 2  # default: 100
 __C.PG.TRAIN.LR = 5e-6 #5e-4
