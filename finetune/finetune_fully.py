@@ -74,11 +74,11 @@ if __name__ == "__main__":
         train_sampler = DistributedSampler(train_dataset, shuffle=True, drop_last=True)
 
         train_dataloader = data.DataLoader(dataset=train_dataset, batch_size=cfg.PG.TRAIN.BATCH_SIZE//len(opt['gpu_ids']),
-                                            num_workers=0, pin_memory=False, sampler=train_sampler)  # default: num_workers=0
+                                            num_workers=8, pin_memory=False, sampler=train_sampler)  # default: num_workers=0
     else:
         train_dataloader = data.DataLoader(dataset=train_dataset,
                                            batch_size=cfg.PG.TRAIN.BATCH_SIZE,
-                                           drop_last=True, shuffle=True, num_workers=0, pin_memory=False)  # default: num_workers=0
+                                           drop_last=True, shuffle=True, num_workers=8, pin_memory=False)  # default: num_workers=0
 
 
     dataset_length =len(train_dataloader)
