@@ -145,6 +145,9 @@ class NetCDFDataset(data.Dataset):
         # target time = start time + horizon
         end_time = key + timedelta(hours=self.horizon)
         end_time_str = end_time.strftime('%Y%m%d%H')
+        
+        # print('start_time_str:', start_time_str)
+        # print('end_time_str:', end_time_str)
 
         # Prepare the input_surface dataset
         # print(start_time_str[0:6])
@@ -154,7 +157,7 @@ class NetCDFDataset(data.Dataset):
             input_surface_dataset = input_surface_dataset.sel(time=start_time, expver=5)
         else:
             input_surface_dataset = input_surface_dataset.sel(time=start_time)
-
+            
         # Prepare the input_upper dataset
         input_upper_dataset = xr.open_dataset(
             os.path.join(self.nc_path, 'upper', 'upper_{}.nc'.format(start_time_str[0:8])))
@@ -166,6 +169,11 @@ class NetCDFDataset(data.Dataset):
         assert input_surface_dataset['time'] == input_upper_dataset['time']
         # input dataset to input numpy
         input, input_surface = self.nctonumpy(input_upper_dataset, input_surface_dataset)
+        
+        # print('input_surface_dataset:', input_surface_dataset)
+        # print('input_upper_dataset:', input_upper_dataset)
+        # print('input:', input.shape)
+        # print('input_surface:', input_surface)
 
         # Prepare the target_surface dataset
         target_surface_dataset = xr.open_dataset(
@@ -174,6 +182,7 @@ class NetCDFDataset(data.Dataset):
             target_surface_dataset = target_surface_dataset.sel(time=end_time, expver=5)
         else:
             target_surface_dataset = target_surface_dataset.sel(time=end_time)
+        
         # Prepare the target upper dataset
         target_upper_dataset = xr.open_dataset(
             os.path.join(self.nc_path, 'upper', 'upper_{}.nc'.format(end_time_str[0:8])))
@@ -185,6 +194,11 @@ class NetCDFDataset(data.Dataset):
         assert target_upper_dataset['time'] == target_surface_dataset['time']
         # target dataset to target numpy
         target, target_surface = self.nctonumpy(target_upper_dataset, target_surface_dataset)
+        
+        # print('target_surface_dataset:', target_surface_dataset)
+        # print('target_upper_dataset:', target_upper_dataset)
+        # print('target:', target.shape)
+        # print('target_surface:', target_surface.shape)
 
         return input, input_surface, target, target_surface, (start_time_str, end_time_str)
 
@@ -211,7 +225,7 @@ class NetCDFDataset(data.Dataset):
         return self.__class__.__name__
 
 
-def weatherStatistics_output(filepath="/home/code/data_storage_home/data/pangu/aux_data", device="cpu"):
+def weatherStatistics_output(filepath="/home/ec2-user/pangu-pytorch/aux_data", device="cpu"):
     """
     :return:1, 5, 13, 1, 1
     """
@@ -236,7 +250,7 @@ def weatherStatistics_output(filepath="/home/code/data_storage_home/data/pangu/a
         device)
 
 
-def weatherStatistics_input(filepath="/home/code/data_storage_home/data/pangu/aux_data", device="cpu"):
+def weatherStatistics_input(filepath="/home/ec2-user/pangu-pytorch/aux_data", device="cpu"):
     """
     :return:13, 1, 1, 5
     """
@@ -265,7 +279,7 @@ def LoadConstantMask(filepath='/home/code/Pangu-Weather/constant_masks', device=
         device)  # torch.Size([1, 1, 721, 1440])
 
 
-def LoadConstantMask3(filepath="/home/code/data_storage_home/data/pangu/aux_data", device="cpu"):
+def LoadConstantMask3(filepath="/home/ec2-user/pangu-pytorch/aux_data", device="cpu"):
     mask = np.load(os.path.join(filepath, "constantMaks3.npy")).astype(np.float32)
     mask = torch.from_numpy(mask)
     return mask.to(device)
@@ -288,7 +302,7 @@ def computeStatistics(train_loader):
     return weather_surface_mean, weather_surface_std, weather_mean, weather_std
 
 
-def loadConstMask_h(filepath="/home/code/data_storage_home/data/pangu/aux_data", device="cpu"):
+def loadConstMask_h(filepath="/home/ec2-user/pangu-pytorch/aux_data", device="cpu"):
     mask_h = np.load(os.path.join(filepath, "Constant_17_output_0.npy")).astype(np.float32)
     mask_h = torch.from_numpy(mask_h)
     return mask_h.to(device)

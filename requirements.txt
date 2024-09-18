@@ -1,2 +1,4 @@
 timm
 tensorboardX
+xarray
+netcdf4
