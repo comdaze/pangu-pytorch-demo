@@ -74,11 +74,11 @@ if __name__ == "__main__":
         train_sampler = DistributedSampler(train_dataset, shuffle=True, drop_last=True)
 
         train_dataloader = data.DataLoader(dataset=train_dataset, batch_size=cfg.PG.TRAIN.BATCH_SIZE//len(opt['gpu_ids']),
-                                            num_workers=0, pin_memory=False, sampler=train_sampler)
+                                            num_workers=0, pin_memory=False, sampler=train_sampler)  # default: num_workers=0
     else:
         train_dataloader = data.DataLoader(dataset=train_dataset,
                                            batch_size=cfg.PG.TRAIN.BATCH_SIZE,
-                                           drop_last=True, shuffle=True, num_workers=0, pin_memory=False)
+                                           drop_last=True, shuffle=True, num_workers=0, pin_memory=False)  # default: num_workers=0
 
 
     dataset_length =len(train_dataloader)
@@ -121,7 +121,6 @@ if __name__ == "__main__":
         checkpoint = torch.load(cfg.PG.BENCHMARK.PRETRAIN_24_torch)
     else:
         print('cfg.PG.HORIZON:', cfg.PG.HORIZON, 'NO CHECKPOINT FOUND')
-    print('checkpoint:', checkpoint.keys())
     model.load_state_dict(checkpoint['model'])
     #Fully finetune
     for param in model.parameters():
@@ -137,7 +136,7 @@ if __name__ == "__main__":
     #weather_statistics = utils.LoadStatic_pretrain()
     if rank == 0:
         print("weather statistics are loaded!")
-    torch.set_num_threads(cfg.GLOBAL.NUM_STREADS)
+    torch.set_num_threads(cfg.GLOBAL.NUM_THREADS)
 
     lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[25, 50], gamma=0.5)
     start_epoch = 1

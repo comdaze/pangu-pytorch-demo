@@ -14,7 +14,7 @@ for dirs in ['/home/ec2-user/pangu-pytorch']:
         __C.GLOBAL.PATH = dirs
 assert __C.GLOBAL.PATH is not None
 __C.GLOBAL.SEED =99
-__C.GLOBAL.NUM_STREADS = 16
+__C.GLOBAL.NUM_THREADS = 16
 
 
 # __C.ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))

@@ -55,8 +55,10 @@ class PatchEmbedding_pretrain(nn.Module):
                                        input_surface.shape[-1])  # [1,4,721,1440]
 
     input_surface = self.check_image_size_2d(input_surface)
+    batch_size = input_surface.shape[0]
+    # print('input_surface:', input_surface.shape, 'self.constant_masks:', self.constant_masks.shape)
     input_surface = torch.cat(
-      (input_surface, self.constant_masks), dim=1,
+      (input_surface, self.constant_masks.expand(batch_size, -1, -1, -1)), dim=1,
       out=None)
 
     input_surface = input_surface.view(input_surface.shape[0], input_surface.shape[1], input_surface.shape[-2] // 4,
@@ -74,7 +76,8 @@ class PatchEmbedding_pretrain(nn.Module):
     input = (input - self.upper_mean) / self.upper_std  # [1,1,13,721,1440,5]
     input = torch.permute(input, (0, 5, 1, 2, 3, 4))  # [1,5,1,13,721,1440]
     input = torch.flip(input, [3])
-    input = torch.cat((input, const_h), dim=1)  # [1,6,1,13,721,1440]
+    # print('input:', input.shape, 'const_h:', const_h.shape)
+    input = torch.cat((input, const_h.expand(batch_size, -1, -1, -1, -1, -1)), dim=1)  # [1,6,1,13,721,1440]
     input = input.reshape(input.shape[0], input.shape[1], input.shape[3], input.shape[-2],
                           input.shape[-1])  # [1,6,13,721,1440]
     input = self.check_image_size_3d(input)

@@ -41,6 +41,7 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
             # Load weather data at time t as the input; load weather data at time t+336 as the output
             # Note the data need to be randomly shuffled
             input, input_surface, target, target_surface, periods = train_data
+            # print('input:', input.shape, 'input_surface:', input_surface.shape, 'target:', target.shape, 'target_surface:', target_surface.shape, 'periods:', periods)
             input, input_surface, target, target_surface = input.to(device), input_surface.to(device), target.to(
                 device), target_surface.to(device)
 
