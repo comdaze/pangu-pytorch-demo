@@ -9,7 +9,7 @@ cfg = __C
 __C.GLOBAL = edict()
 __C.GLOBAL.DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 __C.GLOBAL.BATCH_SZIE = 1
-for dirs in ['/home/code/pangu_torch', 'your_path']:
+for dirs in ['/home/ec2-user/pangu-pytorch']:
     if os.path.exists(dirs):
         __C.GLOBAL.PATH = dirs
 assert __C.GLOBAL.PATH is not None
@@ -18,7 +18,7 @@ __C.GLOBAL.NUM_STREADS = 16
 
 
 # __C.ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-__C.PG_INPUT_PATH = '/home/code/data_storage_home/data/pangu'
+__C.PG_INPUT_PATH = '/home/ec2-user/pangu-pytorch'
 assert __C.PG_INPUT_PATH is not None
 
 __C.PG_OUT_PATH = os.path.join(__C.GLOBAL.PATH,'result')
@@ -35,31 +35,31 @@ __C.PG.TRAIN = edict()
 
 __C.PG.HORIZON = 24
 
-__C.PG.TRAIN.EPOCHS = 100
+__C.PG.TRAIN.EPOCHS = 2  # default: 100
 __C.PG.TRAIN.LR = 5e-6 #5e-4
 __C.PG.TRAIN.WEIGHT_DECAY = 3e-6
-__C.PG.TRAIN.START_TIME = '20150101'
-__C.PG.TRAIN.END_TIME = '20171231' #'20171231'
-__C.PG.TRAIN.FREQUENCY = '12H'
-__C.PG.TRAIN.BATCH_SIZE = 2
+__C.PG.TRAIN.START_TIME = '20180701'
+__C.PG.TRAIN.END_TIME = '20180703' #'20171231'
+__C.PG.TRAIN.FREQUENCY = '12h'
+__C.PG.TRAIN.BATCH_SIZE = 1
 __C.PG.TRAIN.UPPER_WEIGHTS = [3.00, 0.60, 1.50, 0.77, 0.54]
 __C.PG.TRAIN.SURFACE_WEIGHTS = [1.50, 0.77, 0.66, 3.00]
 __C.PG.TRAIN.SAVE_INTERVAL = 1
 __C.PG.VAL = edict()
 
 
-__C.PG.VAL.START_TIME = '20190101'
-__C.PG.VAL.END_TIME = '20191231'
-__C.PG.VAL.FREQUENCY = '12H'
+__C.PG.VAL.START_TIME = '20180701'
+__C.PG.VAL.END_TIME = '20180703'
+__C.PG.VAL.FREQUENCY = '12h'
 __C.PG.VAL.BATCH_SIZE = 1
 __C.PG.VAL.INTERVAL = 1
 
 
 __C.PG.TEST = edict()
 
-__C.PG.TEST.START_TIME = '20180103'
-__C.PG.TEST.END_TIME = '20180117'
-__C.PG.TEST.FREQUENCY = '12H'
+__C.PG.TEST.START_TIME = '20180701'
+__C.PG.TEST.END_TIME = '20180703'
+__C.PG.TEST.FREQUENCY = '12h'
 __C.PG.TEST.BATCH_SIZE = 1
 
 __C.PG.BENCHMARK = edict()
