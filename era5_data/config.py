@@ -33,7 +33,8 @@ __C.PG = edict()
 
 __C.PG.TRAIN = edict()
 
-__C.PG.HORIZON = 24  # 表示预测时间范围或预测步数
+__C.PG.TIMESTEP = 24  # 时间步长（例如，每步预测 24 小时）
+__C.PG.HORIZON = 24  # 预测范围（例如，预测未来 24 小时）
 
 __C.PG.TRAIN.EPOCHS = 2  # default: 100
 __C.PG.TRAIN.LR = 5e-6 #5e-4
@@ -72,7 +73,10 @@ __C.PG.BENCHMARK.PRETRAIN_1 = os.path.join(__C.PG_INPUT_PATH , 'pretrained_model
 __C.PG.BENCHMARK.PRETRAIN_24_fp16 = os.path.join(__C.PG_INPUT_PATH , 'pretrained_model_fp16/pangu_weather_24_fp16.onnx')
 
 __C.PG.BENCHMARK.PRETRAIN_24_torch = os.path.join(__C.PG_INPUT_PATH , 'pretrained_model/pangu_weather_24_torch.pth')
-  
+__C.PG.BENCHMARK.PRETRAIN_6_torch = os.path.join(__C.PG_INPUT_PATH , 'pretrained_model/pangu_weather_6_torch.pth')
+__C.PG.BENCHMARK.PRETRAIN_3_torch = os.path.join(__C.PG_INPUT_PATH , 'pretrained_model/pangu_weather_3_torch.pth')
+__C.PG.BENCHMARK.PRETRAIN_1_torch = os.path.join(__C.PG_INPUT_PATH , 'pretrained_model/pangu_weather_1_torch.pth')
+
    
 __C.MODEL = edict()
 
