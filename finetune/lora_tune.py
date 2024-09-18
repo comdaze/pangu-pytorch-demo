@@ -81,11 +81,11 @@ if __name__ == "__main__":
         train_sampler = DistributedSampler(train_dataset, shuffle=True, drop_last=True)
 
         train_dataloader = data.DataLoader(dataset=train_dataset, batch_size=cfg.PG.TRAIN.BATCH_SIZE//len(opt['gpu_ids']),
-                                            num_workers=0, pin_memory=False, sampler=train_sampler)
+                                            num_workers=8, pin_memory=False, sampler=train_sampler)  # default: num_workers=0
     else:
         train_dataloader = data.DataLoader(dataset=train_dataset,
                                            batch_size=cfg.PG.TRAIN.BATCH_SIZE,
-                                           drop_last=True, shuffle=True, num_workers=0, pin_memory=False)
+                                           drop_last=True, shuffle=True, num_workers=8, pin_memory=False)  # default: num_workers=0
 
 
     dataset_length =len(train_dataloader)
@@ -116,7 +116,16 @@ if __name__ == "__main__":
                                       drop_last=True, shuffle=False, num_workers=0, pin_memory=False)
 
     model = PanguModel(device=device).to(device)
-    checkpoint = torch.load(cfg.PG.BENCHMARK.PRETRAIN_24_torch)
+    if cfg.PG.HORIZON == 1:
+        checkpoint = torch.load(cfg.PG.BENCHMARK.PRETRAIN_1_torch)
+    elif cfg.PG.HORIZON == 3:
+        checkpoint = torch.load(cfg.PG.BENCHMARK.PRETRAIN_3_torch)
+    elif cfg.PG.HORIZON == 6:
+        checkpoint = torch.load(cfg.PG.BENCHMARK.PRETRAIN_6_torch)
+    elif cfg.PG.HORIZON == 24:
+        checkpoint = torch.load(cfg.PG.BENCHMARK.PRETRAIN_24_torch)
+    else:
+        print('cfg.PG.HORIZON:', cfg.PG.HORIZON, 'NO CHECKPOINT FOUND')
     print('loading model pretrained weight.')
     model.load_state_dict(checkpoint['model'])
 
