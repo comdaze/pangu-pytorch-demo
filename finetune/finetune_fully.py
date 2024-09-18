@@ -111,16 +111,16 @@ if __name__ == "__main__":
 
     model = PanguModel(device=device).to(device)
 
-    if cfg.PG.TIMESTEP == 1:
+    if cfg.PG.HORIZON == 1:
         checkpoint = torch.load(cfg.PG.BENCHMARK.PRETRAIN_1_torch)
-    elif cfg.PG.TIMESTEP == 3:
+    elif cfg.PG.HORIZON == 3:
         checkpoint = torch.load(cfg.PG.BENCHMARK.PRETRAIN_3_torch)
-    elif cfg.PG.TIMESTEP == 6:
+    elif cfg.PG.HORIZON == 6:
         checkpoint = torch.load(cfg.PG.BENCHMARK.PRETRAIN_6_torch)
-    elif cfg.PG.TIMESTEP == 24:
+    elif cfg.PG.HORIZON == 24:
         checkpoint = torch.load(cfg.PG.BENCHMARK.PRETRAIN_24_torch)
     else:
-        print('cfg.PG.TIMESTEP:', cfg.PG.TIMESTEP, 'NO CHECKPOINT FOUND')
+        print('cfg.PG.HORIZON:', cfg.PG.HORIZON, 'NO CHECKPOINT FOUND')
     print('checkpoint:', checkpoint.keys())
     model.load_state_dict(checkpoint['model'])
     #Fully finetune
