@@ -94,9 +94,10 @@ class NetCDFDataset(data.Dataset):
             self.keys = list(pd.date_range(start=startDate, end=endDate, freq=freq))
             # self.keys = (list(set(self.keys)))
             # end_time = self.keys[0] + timedelta(hours = self.horizon)
-        self.length = len(self.keys) - horizon // 12 - 1
+        # self.length = len(self.keys) - horizon // 12 - 1  # TODO Why horizon // 12 ?
+        self.length = len(self.keys) - horizon // int(freq[:-1]) - 1
         
-        print('self.keys:', self.keys)
+        print('self.keys:', len(self.keys), self.keys)
         print('self.length:', self.length)
 
         random.seed(seed)
@@ -131,7 +132,7 @@ class NetCDFDataset(data.Dataset):
         assert surface.shape == (4, 721, 1440)
         
         nctonumpy_end = time.time()
-        print('nctonumpy time:', nctonumpy_end-nctonumpy_start)
+        # print('nctonumpy time:', nctonumpy_end-nctonumpy_start)
 
         return upper, surface
 
@@ -152,11 +153,11 @@ class NetCDFDataset(data.Dataset):
         start_time_str = datetime.strftime(key, '%Y%m%d%H')
 
         # target time = start time + horizon
-        end_time = key + timedelta(hours=self.horizon)
+        end_time = key + timedelta(hours=self.horizon)  # TODO: 这里有问题，其实是把horizon当timestep用了
         end_time_str = end_time.strftime('%Y%m%d%H')
         
-        print('start_time_str:', start_time_str)
-        print('end_time_str:', end_time_str)
+        # print('start_time_str:', start_time_str)
+        # print('end_time_str:', end_time_str)
 
         # Prepare the input_surface dataset
         # print(start_time_str[0:6])
@@ -218,7 +219,7 @@ class NetCDFDataset(data.Dataset):
             LoadData_start = time.time()
             input, input_surface, target, target_surface, periods = self.LoadData(iii)
             LoadData_end = time.time()
-            print('LoadData time:', LoadData_end-LoadData_start)
+            # print('LoadData time:', LoadData_end-LoadData_start)
 
             if self.data_transform is not None:
                 input = self.data_transform(input)
