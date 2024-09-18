@@ -3,8 +3,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 import numpy as np
 import sys
-
-sys.path.append("/home/code/pangu_torch")
+sys.path.append("/home/ec2-user/pangu-pytorch")
 from era5_data.config import cfg
 from typing import Tuple, List
 import torch

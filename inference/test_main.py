@@ -1,5 +1,5 @@
 import sys
-sys.path.append("/home/code/pangu_torch")
+sys.path.append("/home/ec2-user/pangu-pytorch")
 from era5_data import utils, utils_data
 from era5_data.config import cfg
 from models.pangu_model import PanguModel

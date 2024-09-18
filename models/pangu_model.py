@@ -1,5 +1,5 @@
 import sys
-sys.path.append("/home/code/pangu_torch")
+sys.path.append("/home/ec2-user/pangu-pytorch")
 from torch import nn
 import torch
 from models.layers import *
