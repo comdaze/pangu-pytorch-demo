@@ -28,7 +28,7 @@ if __name__ == "__main__":
     parser.add_argument('--type_net', type=str, default="finetune_fully")
     parser.add_argument('--load_my_best', type=bool, default=True)
     parser.add_argument('--launcher', default='pytorch', help='job launcher')
-    parser.add_argument('--local-rank', type=int, default=0)
+    # parser.add_argument('--local-rank', type=int, default=0)
     parser.add_argument('--dist', default=True)
 
     args = parser.parse_args()
@@ -46,14 +46,13 @@ if __name__ == "__main__":
     # distributed settings
     # ----------------------------------------
     if args.dist:
-        init_dist('pytorch')
+        init_dist(args.launcher, backend='nccl')
     rank, world_size = get_dist_info()
     print("The rank and world size is", rank, world_size)
     local_rank = rank % world_size
     print('local_rank:', local_rank)
     device = torch.device('cuda:' + str(local_rank))
-    if rank == 0:
-        print(f"Predicting on {device}")
+    print(f"Predicting on {device}")
 
     output_path = os.path.join(
         cfg.PG_OUT_PATH, args.type_net, str(cfg.PG.HORIZON))
@@ -134,6 +133,7 @@ if __name__ == "__main__":
     else:
         print('cfg.PG.HORIZON:', cfg.PG.HORIZON, 'NO CHECKPOINT FOUND')
     model.load_state_dict(checkpoint['model'])
+    
     # Fully finetune
     for param in model.parameters():
         param.requires_grad = True
@@ -147,9 +147,9 @@ if __name__ == "__main__":
         logger.info(msg)
 
     # weather_statistics = utils.LoadStatic_pretrain()
-    if rank == 0:
-        print("weather statistics are loaded!")
-    torch.set_num_threads(cfg.GLOBAL.NUM_THREADS)
+    # if rank == 0:
+    #     print("weather statistics are loaded!")
+    # torch.set_num_threads(cfg.GLOBAL.NUM_THREADS)
 
     lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(
         optimizer, milestones=[25, 50], gamma=0.5)

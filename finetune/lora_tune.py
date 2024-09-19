@@ -33,8 +33,8 @@ if __name__ == "__main__":
     parser.add_argument('--load_pretrained', type=bool, default=False)
     parser.add_argument('--load_my_best', type=bool, default=True)
     parser.add_argument('--launcher', default='pytorch', help='job launcher')
-    parser.add_argument('--local-rank', type=int, default=0)
-    parser.add_argument('--dist', default=False)
+    # parser.add_argument('--local-rank', type=int, default=0)
+    parser.add_argument('--dist', default=True)
     args = parser.parse_args()
     starts = time.time()
 
@@ -51,15 +51,13 @@ if __name__ == "__main__":
     # distributed settings
     # ----------------------------------------
     if args.dist:
-        init_dist('pytorch')
+        init_dist(args.launcher, backend='nccl')
     rank, world_size = get_dist_info()
     print("The rank and world size is", rank, world_size)
     local_rank = rank % world_size
     print('local_rank:', local_rank)
     device = torch.device('cuda:' + str(local_rank))
-
-    # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    # print(f"Predicting on {device}")
+    print(f"Predicting on {device}")
 
     output_path = os.path.join(
         cfg.PG_OUT_PATH, args.type_net, str(cfg.PG.HORIZON))
@@ -98,7 +96,8 @@ if __name__ == "__main__":
                                            drop_last=True, shuffle=True, num_workers=8, pin_memory=False)  # default: num_workers=0
 
     dataset_length = len(train_dataloader)
-    print("dataset_length", dataset_length)
+    if rank == 0:
+        print("dataset_length", dataset_length)
 
     # val_dataset = utils_data.NetCDFDataset(nc_path=PATH,
     val_dataset = utils_data.PTDataset(pt_path=PATH,
@@ -127,6 +126,7 @@ if __name__ == "__main__":
                                       drop_last=True, shuffle=False, num_workers=8, pin_memory=False)  # default: num_workers=0
 
     model = PanguModel(device=device).to(device)
+    
     if cfg.PG.HORIZON == 1:
         checkpoint = torch.load(cfg.PG.BENCHMARK.PRETRAIN_1_torch)
     elif cfg.PG.HORIZON == 3:
@@ -137,7 +137,6 @@ if __name__ == "__main__":
         checkpoint = torch.load(cfg.PG.BENCHMARK.PRETRAIN_24_torch)
     else:
         print('cfg.PG.HORIZON:', cfg.PG.HORIZON, 'NO CHECKPOINT FOUND')
-    print('loading model pretrained weight.')
     model.load_state_dict(checkpoint['model'])
 
     print([(n, type(m)) for n, m in model.named_modules()])
@@ -178,29 +177,30 @@ if __name__ == "__main__":
                        device=device,
                        writer=writer, logger=logger, start_epoch=start_epoch, rank=rank)
 
-    for name, param in peft_model.base_model.named_parameters():
-        if "lora" not in name:
-            continue
-
-        print(
-            f"New parameter {name:<13} | {param.numel():>5} parameters | updated")
-
-    params_before = dict(module_copy.named_parameters())
-    for name, param in peft_model.base_model.named_parameters():
-        if "lora" in name:
-            continue
-
-        name_before = name.partition(".")[-1].replace("original_", "").replace("module.", "").replace(
-            "modules_to_save.default.", "")
-        param_before = params_before[name_before]
-        if torch.allclose(param, param_before):
-            print(
-                f"Parameter {name_before:<13} | {param.numel():>7} parameters | not updated")
-        else:
-            print(
-                f"Parameter {name_before:<13} | {param.numel():>7} parameters | updated")
-
     if rank == 0:
+        for name, param in peft_model.base_model.named_parameters():
+            if "lora" not in name:
+                continue
+
+            print(
+                f"New parameter {name:<13} | {param.numel():>5} parameters | updated")
+
+        params_before = dict(module_copy.named_parameters())
+        for name, param in peft_model.base_model.named_parameters():
+            if "lora" in name:
+                continue
+
+            name_before = name.partition(".")[-1].replace("original_", "").replace("module.", "").replace(
+                "modules_to_save.default.", "")
+            if name_before in params_before:  # TODO in case name_before not in params_before, e.g., 'downsample.linear.base_layer.weight'
+                param_before = params_before[name_before]
+                if torch.allclose(param, param_before):
+                    print(
+                        f"Parameter {name_before:<13} | {param.numel():>7} parameters | not updated")
+                else:
+                    print(
+                        f"Parameter {name_before:<13} | {param.numel():>7} parameters | updated")
+
         output_path = os.path.join(output_path, "test")
         utils.mkdirs(output_path)
 
