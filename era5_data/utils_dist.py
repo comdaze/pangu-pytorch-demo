@@ -2,6 +2,7 @@
 import functools
 import os
 import subprocess
+
 import torch
 import torch.distributed as dist
 import torch.multiprocessing as mp
@@ -193,6 +194,7 @@ def reduce_loss_dict(loss_dict):
         reduced_losses = {k: v for k, v in zip(keys, losses)}
 
     return reduced_losses
+
 
 def setup(rank, world_size):
     """
