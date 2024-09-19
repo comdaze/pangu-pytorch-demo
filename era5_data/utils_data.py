@@ -311,8 +311,8 @@ class PTDataset(data.Dataset):
         # print('start_time_str:', start_time_str)
         # print('end_time_str:', end_time_str)
         
-        device = torch.device(f'cuda:{torch.cuda.current_device()}' if torch.cuda.is_available() else 'cpu')
-        # device = 'cpu'
+        # device = torch.device(f'cuda:{torch.cuda.current_device()}' if torch.cuda.is_available() else 'cpu')
+        device = 'cpu'
         # print('device:', device)
 
         # Prepare the input_surface dataset

@@ -29,12 +29,11 @@ if __name__ == "__main__":
 
     PATH = cfg.PG_INPUT_PATH
 
-    opt = {"gpu_ids": [0]}
-    gpu_list = ','.join(str(x) for x in opt['gpu_ids'])
-    # gpu_list = str(opt['gpu_ids'])
-    os.environ['CUDA_VISIBLE_DEVICES'] = gpu_list
-    device = torch.device('cuda' if opt['gpu_ids'] else 'cpu')
-
+    # opt = {"gpu_ids": [0]}
+    # gpu_list = ','.join(str(x) for x in opt['gpu_ids'])
+    # # gpu_list = str(opt['gpu_ids'])
+    # os.environ['CUDA_VISIBLE_DEVICES'] = gpu_list
+    # device = torch.device('cuda' if opt['gpu_ids'] else 'cpu')
 
     # ----------------------------------------
     # distributed settings
@@ -43,9 +42,11 @@ if __name__ == "__main__":
         init_dist('pytorch')
     rank, world_size = get_dist_info()
     print("The rank and world size is", rank, world_size)
+    local_rank = rank % world_size
+    print('local_rank:', local_rank)
+    device = torch.device('cuda:' + str(local_rank))
     if rank == 0:
         print(f"Predicting on {device}")
-
 
     output_path = os.path.join(cfg.PG_OUT_PATH, args.type_net, str(cfg.PG.HORIZON))
     utils.mkdirs(output_path)
@@ -74,7 +75,7 @@ if __name__ == "__main__":
     if args.dist:
         train_sampler = DistributedSampler(train_dataset, shuffle=True, drop_last=True)
 
-        train_dataloader = data.DataLoader(dataset=train_dataset, batch_size=cfg.PG.TRAIN.BATCH_SIZE//len(opt['gpu_ids']),
+        train_dataloader = data.DataLoader(dataset=train_dataset, batch_size=cfg.PG.TRAIN.BATCH_SIZE//world_size,  # replace len(opt['gpu_ids']) with world_size
                                             num_workers=8, pin_memory=False, sampler=train_sampler)  # default: num_workers=0
     else:
         train_dataloader = data.DataLoader(dataset=train_dataset,
@@ -150,16 +151,17 @@ if __name__ == "__main__":
                      lr_scheduler=lr_scheduler,
                      res_path = output_path,
                      device=device,
-                     writer=writer, logger = logger, start_epoch=start_epoch)
+                     writer=writer, logger = logger, start_epoch=start_epoch, rank=rank)
 
+    if rank == 0:
+        if args.load_my_best:
+            best_model = torch.load(os.path.join(output_path,"models/best_model.pth"),map_location=device)  # 'cuda:0'
 
-    if args.load_my_best:
-        best_model = torch.load(os.path.join(output_path,"models/best_model.pth"),map_location='cuda:0')
+        logger.info("Begin testing...")
 
-    logger.info("Begin testing...")
+        test(test_loader=test_dataloader,
+            model=best_model,
+            device=device,
+            res_path=output_path)
 
-    test(test_loader=test_dataloader,
-         model=best_model,
-         device=device,
-         res_path=output_path)
-    #CUDA_VISIBLE_DEVICES=0,1,2,3 nohup python -m torch.distributed.launch --nproc_per_node=4 --master_port=1234 finetune_lastLayer_ddp.py --dist True
+#CUDA_VISIBLE_DEVICES=0,1,2,3 nohup python -m torch.distributed.launch --nproc_per_node=4 --master_port=1234 finetune_lastLayer_ddp.py --dist True
