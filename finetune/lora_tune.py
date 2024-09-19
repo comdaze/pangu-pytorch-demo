@@ -34,20 +34,23 @@ if __name__ == "__main__":
 
     PATH = cfg.PG_INPUT_PATH
 
-    opt = {"gpu_ids": [0]}
-    gpu_list = ','.join(str(x) for x in opt['gpu_ids'])
-    # gpu_list = str(opt['gpu_ids'])
-    os.environ['CUDA_VISIBLE_DEVICES'] = gpu_list
-    device = torch.device('cuda' if opt['gpu_ids'] else 'cpu')
+    # opt = {"gpu_ids": [0]}
+    # gpu_list = ','.join(str(x) for x in opt['gpu_ids'])
+    # # gpu_list = str(opt['gpu_ids'])
+    # os.environ['CUDA_VISIBLE_DEVICES'] = gpu_list
+    # device = torch.device('cuda' if opt['gpu_ids'] else 'cpu')
 
-    print(f"Predicting on {device}")
+    # print(f"Predicting on {device}")
     # ----------------------------------------
     # distributed settings
     # ----------------------------------------
     if args.dist:
         init_dist('pytorch')
-        rank, world_size = get_dist_info()
-        print("The rank and world size is", rank, world_size)
+    rank, world_size = get_dist_info()
+    print("The rank and world size is", rank, world_size)
+    local_rank = rank % world_size
+    print('local_rank:', local_rank)
+    device = torch.device('cuda:' + str(local_rank))
 
 
     # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -81,7 +84,7 @@ if __name__ == "__main__":
     if args.dist:
         train_sampler = DistributedSampler(train_dataset, shuffle=True, drop_last=True)
 
-        train_dataloader = data.DataLoader(dataset=train_dataset, batch_size=cfg.PG.TRAIN.BATCH_SIZE//len(opt['gpu_ids']),
+        train_dataloader = data.DataLoader(dataset=train_dataset, batch_size=cfg.PG.TRAIN.BATCH_SIZE//world_size,  # replace len(opt['gpu_ids']) with world_size
                                             num_workers=8, pin_memory=False, sampler=train_sampler)  # default: num_workers=0
     else:
         train_dataloader = data.DataLoader(dataset=train_dataset,
@@ -165,7 +168,7 @@ if __name__ == "__main__":
                      lr_scheduler=lr_scheduler,
                      res_path = output_path,
                      device=device,
-                     writer=writer, logger = logger, start_epoch=start_epoch)
+                     writer=writer, logger = logger, start_epoch=start_epoch, rank=rank)
 
     for name, param in peft_model.base_model.named_parameters():
         if "lora" not in name:
@@ -186,12 +189,14 @@ if __name__ == "__main__":
         else:
             print(f"Parameter {name_before:<13} | {param.numel():>7} parameters | updated")
 
-    output_path = os.path.join(output_path, "test")
-    utils.mkdirs(output_path)
 
-    test(test_loader=test_dataloader,
-         model=peft_model,
-         device=device,
-         res_path=output_path)
+    if rank == 0:
+        output_path = os.path.join(output_path, "test")
+        utils.mkdirs(output_path)
+        
+        test(test_loader=test_dataloader,
+            model=peft_model,
+            device=device,
+            res_path=output_path)
 
-    #CUDA_VISIBLE_DEVICES=0,1,2,3 nohup python -m torch.distributed.launch --nproc_per_node=4 --master_port=1234 finetune_lastLayer_ddp.py --dist True
+#CUDA_VISIBLE_DEVICES=0,1,2,3 nohup python -m torch.distributed.launch --nproc_per_node=4 --master_port=1234 finetune_lastLayer_ddp.py --dist True

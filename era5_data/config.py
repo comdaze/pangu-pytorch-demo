@@ -33,33 +33,33 @@ __C.PG = edict()
 
 __C.PG.TRAIN = edict()
 
-__C.PG.HORIZON = 6  # 时间步长（例如，每步预测 24 小时）, 可选：1, 3, 6, 24。这里名称定义可能会有歧义，按理说HORIZON是指预测范围，也就是几个“时间步长”，但是本项目中就当“时间步长”来用了
+__C.PG.HORIZON = 1  # 时间步长（例如，每步预测 24 小时）, 可选：1, 3, 6, 24。这里名称定义可能会有歧义，按理说HORIZON是指预测范围，也就是几个“时间步长”，但是本项目中就当“时间步长”来用了
 
 __C.PG.TRAIN.EPOCHS = 2  # default: 100
 __C.PG.TRAIN.LR = 5e-6 #5e-4
 __C.PG.TRAIN.WEIGHT_DECAY = 3e-6
 __C.PG.TRAIN.START_TIME = '20180101'
-__C.PG.TRAIN.END_TIME = '20180128' #'20171231'
-__C.PG.TRAIN.FREQUENCY = '6h'  # default: 12h (HORIZON=24)
-__C.PG.TRAIN.BATCH_SIZE = 1
+__C.PG.TRAIN.END_TIME = '20180102' #'20171231'
+__C.PG.TRAIN.FREQUENCY = '1h'  # default: 12h (HORIZON=24)
+__C.PG.TRAIN.BATCH_SIZE = 4
 __C.PG.TRAIN.UPPER_WEIGHTS = [3.00, 0.60, 1.50, 0.77, 0.54]
 __C.PG.TRAIN.SURFACE_WEIGHTS = [1.50, 0.77, 0.66, 3.00]
 __C.PG.TRAIN.SAVE_INTERVAL = 1
 __C.PG.VAL = edict()
 
 
-__C.PG.VAL.START_TIME = '20180128'
-__C.PG.VAL.END_TIME = '20180130'
-__C.PG.VAL.FREQUENCY = '6h'  # default: 12h (HORIZON=24)
+__C.PG.VAL.START_TIME = '20180101'
+__C.PG.VAL.END_TIME = '20180102'
+__C.PG.VAL.FREQUENCY = '1h'  # default: 12h (HORIZON=24)
 __C.PG.VAL.BATCH_SIZE = 1
 __C.PG.VAL.INTERVAL = 1
 
 
 __C.PG.TEST = edict()
 
-__C.PG.TEST.START_TIME = '20180130'
-__C.PG.TEST.END_TIME = '20180201'
-__C.PG.TEST.FREQUENCY = '6h'  # default: 12h (HORIZON=24)
+__C.PG.TEST.START_TIME = '20180101'
+__C.PG.TEST.END_TIME = '20180102'
+__C.PG.TEST.FREQUENCY = '1h'  # default: 12h (HORIZON=24)
 __C.PG.TEST.BATCH_SIZE = 1
 
 __C.PG.BENCHMARK = edict()
