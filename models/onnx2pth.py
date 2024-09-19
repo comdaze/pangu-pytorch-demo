@@ -1,13 +1,17 @@
 # pip install onnx2pytorch
-
+import os
 import sys
-sys.path.append("/home/ec2-user/pangu-pytorch")
-from models.pangu_model import PanguModel
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.append(parent_dir)
 
-from onnx2pytorch import ConvertModel
-import onnx
-import onnx.numpy_helper
 import torch
+
+import onnx.numpy_helper
+import onnx
+from onnx2pytorch import ConvertModel
+
+from models.pangu_model import PanguModel
 
 
 pytorch_model = PanguModel()
@@ -47,7 +51,7 @@ for name, param in pytorch_state_dict.items():
                 matching_name = onnx_name
                 matching_names.append(matching_name)
                 break
-        
+
         if matching_param is not None:
             new_state_dict[name] = matching_param
             # print('Shape matched:', name, 'matching_name:', matching_name)
@@ -58,4 +62,5 @@ for name, param in pytorch_state_dict.items():
 # 加载新的状态字典到PyTorch模型
 pytorch_model.load_state_dict(new_state_dict, strict=True)
 
-torch.save({'model': pytorch_model.state_dict()}, onnx_model_path[:-5]+'_torch.pth')
+torch.save({'model': pytorch_model.state_dict()},
+           onnx_model_path[:-5]+'_torch.pth')

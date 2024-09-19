@@ -1,18 +1,21 @@
-import xarray as xr
-from datetime import datetime, timedelta
+import os
+import sys
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.append(parent_dir)
+
+import time
+import random
 import pandas as pd
 import numpy as np
-import sys
-sys.path.append("/home/ec2-user/pangu-pytorch")
+import xarray as xr
+from datetime import datetime, timedelta
+
+import torch
+from torch.utils import data
+
 from era5_data.config import cfg
 
-from typing import Tuple, List
-import torch
-import random
-from torch.utils import data
-from torchvision import transforms as T
-import os
-import time
 
 class DataPrefetcher():
     def __init__(self, loader):
@@ -30,10 +33,12 @@ class DataPrefetcher():
 
     def __preload__(self):
         try:
-            self.input, self.input_surface, self.target, self.target_surface, self.periods = next(self.dataiter)
+            self.input, self.input_surface, self.target, self.target_surface, self.periods = next(
+                self.dataiter)
         except StopIteration:
             self.dataiter = iter(self.loader)
-            self.input, self.input_surface, self.target, self.target_surface, self.periods = next(self.dataiter)
+            self.input, self.input_surface, self.target, self.target_surface, self.periods = next(
+                self.dataiter)
 
         with torch.cuda.stream(self.stream):
             self.target = self.target.cuda(non_blocking=True)
@@ -79,7 +84,8 @@ class NetCDFDataset(data.Dataset):
         self.data_transform = data_transform
 
         if training:
-            self.keys = list(pd.date_range(start=startDate, end=endDate, freq=freq))
+            self.keys = list(pd.date_range(
+                start=startDate, end=endDate, freq=freq))
             # self.keys = (list(set(self.keys))) #disordered keys
             # total length that we can predict
             """
@@ -87,16 +93,18 @@ class NetCDFDataset(data.Dataset):
             length should >=0 horizon <= len
             """
         elif validation:
-            self.keys = list(pd.date_range(start=startDate, end=endDate, freq=freq))
+            self.keys = list(pd.date_range(
+                start=startDate, end=endDate, freq=freq))
             # self.keys = (list(set(self.keys)))
 
         else:
-            self.keys = list(pd.date_range(start=startDate, end=endDate, freq=freq))
+            self.keys = list(pd.date_range(
+                start=startDate, end=endDate, freq=freq))
             # self.keys = (list(set(self.keys)))
             # end_time = self.keys[0] + timedelta(hours = self.horizon)
         # self.length = len(self.keys) - horizon // 12 - 1  # TODO Why horizon // 12 ?
         self.length = len(self.keys) - horizon // int(freq[:-1]) - 1
-        
+
         print('self.keys:', len(self.keys), self.keys)
         print('self.length:', self.length)
 
@@ -109,7 +117,7 @@ class NetCDFDataset(data.Dataset):
         Return
             numpy array upper, surface
         """
-        
+
         nctonumpy_start = time.time()
 
         upper_z = dataset_upper['z'].values.astype(np.float32)  # (13,721,1440)
@@ -123,14 +131,15 @@ class NetCDFDataset(data.Dataset):
         # levels in descending order, require new memery space
         upper = upper[:, ::-1, :, :].copy()
 
-        surface_mslp = dataset_surface['msl'].values.astype(np.float32)  # (721,1440)
+        surface_mslp = dataset_surface['msl'].values.astype(
+            np.float32)  # (721,1440)
         surface_u10 = dataset_surface['u10'].values.astype(np.float32)
         surface_v10 = dataset_surface['v10'].values.astype(np.float32)
         surface_t2m = dataset_surface['t2m'].values.astype(np.float32)
         surface = np.concatenate((surface_mslp[np.newaxis, ...], surface_u10[np.newaxis, ...],
                                   surface_v10[np.newaxis, ...], surface_t2m[np.newaxis, ...]), axis=0)
         assert surface.shape == (4, 721, 1440)
-        
+
         nctonumpy_end = time.time()
         # print('nctonumpy time:', nctonumpy_end-nctonumpy_start)
 
@@ -153,9 +162,10 @@ class NetCDFDataset(data.Dataset):
         start_time_str = datetime.strftime(key, '%Y%m%d%H')
 
         # target time = start time + horizon
-        end_time = key + timedelta(hours=self.horizon)  # TODO: 这里有问题，其实是把horizon当timestep用了
+        # TODO: 这里有问题，其实是把horizon当timestep用了
+        end_time = key + timedelta(hours=self.horizon)
         end_time_str = end_time.strftime('%Y%m%d%H')
-        
+
         # print('start_time_str:', start_time_str)
         # print('end_time_str:', end_time_str)
 
@@ -164,22 +174,25 @@ class NetCDFDataset(data.Dataset):
         input_surface_dataset = xr.open_dataset(
             os.path.join(self.nc_path, 'surface', 'surface_{}.nc'.format(start_time_str[0:6])))  # 201501
         if 'expver' in input_surface_dataset.keys():
-            input_surface_dataset = input_surface_dataset.sel(time=start_time, expver=5)
+            input_surface_dataset = input_surface_dataset.sel(
+                time=start_time, expver=5)
         else:
             input_surface_dataset = input_surface_dataset.sel(time=start_time)
-            
+
         # Prepare the input_upper dataset
         input_upper_dataset = xr.open_dataset(
             os.path.join(self.nc_path, 'upper', 'upper_{}.nc'.format(start_time_str[0:8])))
         if 'expver' in input_upper_dataset.keys():
-            input_upper_dataset = input_upper_dataset.sel(time=start_time, expver=5)
+            input_upper_dataset = input_upper_dataset.sel(
+                time=start_time, expver=5)
         else:
             input_upper_dataset = input_upper_dataset.sel(time=start_time)
         # make sure upper and surface variables are at the same time
         assert input_surface_dataset['time'] == input_upper_dataset['time']
         # input dataset to input numpy
-        input, input_surface = self.nctonumpy(input_upper_dataset, input_surface_dataset)
-        
+        input, input_surface = self.nctonumpy(
+            input_upper_dataset, input_surface_dataset)
+
         # print('input_surface_dataset:', input_surface_dataset)
         # print('input_upper_dataset:', input_upper_dataset)
         # print('input:', input.shape)
@@ -189,22 +202,25 @@ class NetCDFDataset(data.Dataset):
         target_surface_dataset = xr.open_dataset(
             os.path.join(self.nc_path, 'surface', 'surface_{}.nc'.format(end_time_str[0:6])))  # 201501
         if 'expver' in input_surface_dataset.keys():
-            target_surface_dataset = target_surface_dataset.sel(time=end_time, expver=5)
+            target_surface_dataset = target_surface_dataset.sel(
+                time=end_time, expver=5)
         else:
             target_surface_dataset = target_surface_dataset.sel(time=end_time)
-        
+
         # Prepare the target upper dataset
         target_upper_dataset = xr.open_dataset(
             os.path.join(self.nc_path, 'upper', 'upper_{}.nc'.format(end_time_str[0:8])))
         if 'expver' in target_upper_dataset.keys():
-            target_upper_dataset = target_upper_dataset.sel(time=end_time, expver=5)
+            target_upper_dataset = target_upper_dataset.sel(
+                time=end_time, expver=5)
         else:
             target_upper_dataset = target_upper_dataset.sel(time=end_time)
         # make sure the target upper and surface variables are at the same time
         assert target_upper_dataset['time'] == target_surface_dataset['time']
         # target dataset to target numpy
-        target, target_surface = self.nctonumpy(target_upper_dataset, target_surface_dataset)
-        
+        target, target_surface = self.nctonumpy(
+            target_upper_dataset, target_surface_dataset)
+
         # print('target_surface_dataset:', target_surface_dataset)
         # print('target_upper_dataset:', target_upper_dataset)
         # print('target:', target.shape)
@@ -217,7 +233,8 @@ class NetCDFDataset(data.Dataset):
         if self.training:
             iii = self.keys[index]
             LoadData_start = time.time()
-            input, input_surface, target, target_surface, periods = self.LoadData(iii)
+            input, input_surface, target, target_surface, periods = self.LoadData(
+                iii)
             LoadData_end = time.time()
             # print('LoadData time:', LoadData_end-LoadData_start)
 
@@ -227,7 +244,8 @@ class NetCDFDataset(data.Dataset):
 
         else:
             iii = self.keys[index]
-            input, input_surface, target, target_surface, periods = self.LoadData(iii)
+            input, input_surface, target, target_surface, periods = self.LoadData(
+                iii)
 
         return input, input_surface, target, target_surface, periods
 
@@ -265,7 +283,8 @@ class PTDataset(data.Dataset):
         self.data_transform = data_transform
 
         if training:
-            self.keys = list(pd.date_range(start=startDate, end=endDate, freq=freq))
+            self.keys = list(pd.date_range(
+                start=startDate, end=endDate, freq=freq))
             # self.keys = (list(set(self.keys))) #disordered keys
             # total length that we can predict
             """
@@ -273,16 +292,18 @@ class PTDataset(data.Dataset):
             length should >=0 horizon <= len
             """
         elif validation:
-            self.keys = list(pd.date_range(start=startDate, end=endDate, freq=freq))
+            self.keys = list(pd.date_range(
+                start=startDate, end=endDate, freq=freq))
             # self.keys = (list(set(self.keys)))
 
         else:
-            self.keys = list(pd.date_range(start=startDate, end=endDate, freq=freq))
+            self.keys = list(pd.date_range(
+                start=startDate, end=endDate, freq=freq))
             # self.keys = (list(set(self.keys)))
             # end_time = self.keys[0] + timedelta(hours = self.horizon)
         # self.length = len(self.keys) - horizon // 12 - 1  # TODO Why horizon // 12 ?
         self.length = len(self.keys) - horizon // int(freq[:-1]) - 1
-        
+
         print('self.keys:', len(self.keys), self.keys)
         print('self.length:', self.length)
 
@@ -305,34 +326,39 @@ class PTDataset(data.Dataset):
         start_time_str = datetime.strftime(key, '%Y%m%d%H')
 
         # target time = start time + horizon
-        end_time = key + timedelta(hours=self.horizon)  # TODO: 这里有问题，其实是把horizon当timestep用了
+        # TODO: 这里有问题，其实是把horizon当timestep用了
+        end_time = key + timedelta(hours=self.horizon)
         end_time_str = end_time.strftime('%Y%m%d%H')
-        
+
         # print('start_time_str:', start_time_str)
         # print('end_time_str:', end_time_str)
-        
+
         # device = torch.device(f'cuda:{torch.cuda.current_device()}' if torch.cuda.is_available() else 'cpu')
         device = 'cpu'
         # print('device:', device)
 
         # Prepare the input_surface dataset
         # print(start_time_str[0:6])
-        input_surface = torch.load(os.path.join(self.pt_path, 'surface', 'surface_{}.pt'.format(start_time_str)), weights_only=False, map_location=device)  # 201501
-            
+        input_surface = torch.load(os.path.join(self.pt_path, 'surface', 'surface_{}.pt'.format(
+            start_time_str)), weights_only=False, map_location=device)  # 201501
+
         # Prepare the input_upper dataset
-        input = torch.load(os.path.join(self.pt_path, 'upper', 'upper_{}.pt'.format(start_time_str)), weights_only=False, map_location=device)
+        input = torch.load(os.path.join(self.pt_path, 'upper', 'upper_{}.pt'.format(
+            start_time_str)), weights_only=False, map_location=device)
 
         # print('input:', input.shape)
         # print('input_surface:', input_surface.shape)
         assert input_surface.shape == (4, 721, 1440)
         assert input.shape == (5, 13, 721, 1440)
-        
+
         # Prepare the target_surface dataset
-        target_surface = torch.load(os.path.join(self.pt_path, 'surface', 'surface_{}.pt'.format(end_time_str)), weights_only=False, map_location=device)  # 201501
+        target_surface = torch.load(os.path.join(self.pt_path, 'surface', 'surface_{}.pt'.format(
+            end_time_str)), weights_only=False, map_location=device)  # 201501
 
         # Prepare the target upper dataset
-        target = torch.load(os.path.join(self.pt_path, 'upper', 'upper_{}.pt'.format(end_time_str)), weights_only=False, map_location=device)
-        
+        target = torch.load(os.path.join(self.pt_path, 'upper', 'upper_{}.pt'.format(
+            end_time_str)), weights_only=False, map_location=device)
+
         # print('target:', target.shape)
         # print('target_surface:', target_surface.shape)
         assert target_surface.shape == (4, 721, 1440)
@@ -342,13 +368,14 @@ class PTDataset(data.Dataset):
 
     def __getitem__(self, index):
         """Return input frames, target frames, and its corresponding time steps."""
-        
+
         iii = self.keys[index]
         LoadData_start = time.time()
-        input, input_surface, target, target_surface, periods = self.LoadData(iii)
+        input, input_surface, target, target_surface, periods = self.LoadData(
+            iii)
         LoadData_end = time.time()
         # print('LoadData time:', LoadData_end-LoadData_start)
-        
+
         if self.training:
             if self.data_transform is not None:
                 input = self.data_transform(input)
@@ -361,25 +388,29 @@ class PTDataset(data.Dataset):
 
     def __repr__(self):
         return self.__class__.__name__
-    
+
 
 def weatherStatistics_output(filepath="/home/ec2-user/pangu-pytorch/aux_data", device="cpu"):
     """
     :return:1, 5, 13, 1, 1
     """
-    surface_mean = np.load(os.path.join(filepath, "surface_mean.npy")).astype(np.float32)
-    surface_std = np.load(os.path.join(filepath, "surface_std.npy")).astype(np.float32)
+    surface_mean = np.load(os.path.join(
+        filepath, "surface_mean.npy")).astype(np.float32)
+    surface_std = np.load(os.path.join(
+        filepath, "surface_std.npy")).astype(np.float32)
     surface_mean = torch.from_numpy(surface_mean)
     surface_std = torch.from_numpy(surface_std)
     surface_mean = surface_mean.view(1, 4, 1, 1)
     surface_std = surface_std.view(1, 4, 1, 1)
 
-    upper_mean = np.load(os.path.join(filepath, "upper_mean.npy")).astype(np.float32)  # (13,1,1,5)
+    upper_mean = np.load(os.path.join(filepath, "upper_mean.npy")).astype(
+        np.float32)  # (13,1,1,5)
     upper_mean = upper_mean[::-1, :, :, :].copy()
     upper_mean = np.transpose(upper_mean, (1, 3, 0, 2))  # (1,5,13, 1)
     upper_mean = torch.from_numpy(upper_mean)
 
-    upper_std = np.load(os.path.join(filepath, "upper_std.npy")).astype(np.float32)
+    upper_std = np.load(os.path.join(
+        filepath, "upper_std.npy")).astype(np.float32)
     upper_std = upper_std[::-1, :, :, :].copy()
     upper_std = np.transpose(upper_std, (1, 3, 0, 2))
     upper_std = torch.from_numpy(upper_std)
@@ -392,13 +423,17 @@ def weatherStatistics_input(filepath="/home/ec2-user/pangu-pytorch/aux_data", de
     """
     :return:13, 1, 1, 5
     """
-    surface_mean = np.load(os.path.join(filepath, "surface_mean.npy")).astype(np.float32)
-    surface_std = np.load(os.path.join(filepath, "surface_std.npy")).astype(np.float32)
+    surface_mean = np.load(os.path.join(
+        filepath, "surface_mean.npy")).astype(np.float32)
+    surface_std = np.load(os.path.join(
+        filepath, "surface_std.npy")).astype(np.float32)
     surface_mean = torch.from_numpy(surface_mean)
     surface_std = torch.from_numpy(surface_std)
 
-    upper_mean = np.load(os.path.join(filepath, "upper_mean.npy")).astype(np.float32)
-    upper_std = np.load(os.path.join(filepath, "upper_std.npy")).astype(np.float32)
+    upper_mean = np.load(os.path.join(
+        filepath, "upper_mean.npy")).astype(np.float32)
+    upper_std = np.load(os.path.join(
+        filepath, "upper_std.npy")).astype(np.float32)
     upper_mean = torch.from_numpy(upper_mean)
     upper_std = torch.from_numpy(upper_std)
 
@@ -406,9 +441,12 @@ def weatherStatistics_input(filepath="/home/ec2-user/pangu-pytorch/aux_data", de
 
 
 def LoadConstantMask(filepath='/home/code/Pangu-Weather/constant_masks', device="cpu"):
-    land_mask = np.load(os.path.join(filepath, "land_mask.npy")).astype(np.float32)
-    soil_type = np.load(os.path.join(filepath, "soil_type.npy")).astype(np.float32)
-    topography = np.load(os.path.join(filepath, "topography.npy")).astype(np.float32)
+    land_mask = np.load(os.path.join(
+        filepath, "land_mask.npy")).astype(np.float32)
+    soil_type = np.load(os.path.join(
+        filepath, "soil_type.npy")).astype(np.float32)
+    topography = np.load(os.path.join(
+        filepath, "topography.npy")).astype(np.float32)
     land_mask = torch.from_numpy(land_mask)  # ([721, 1440])
     soil_type = torch.from_numpy(soil_type)  # ([721, 1440])
     topography = torch.from_numpy(topography)  # ([721, 1440])
@@ -418,21 +456,27 @@ def LoadConstantMask(filepath='/home/code/Pangu-Weather/constant_masks', device=
 
 
 def LoadConstantMask3(filepath="/home/ec2-user/pangu-pytorch/aux_data", device="cpu"):
-    mask = np.load(os.path.join(filepath, "constantMaks3.npy")).astype(np.float32)
+    mask = np.load(os.path.join(filepath, "constantMaks3.npy")
+                   ).astype(np.float32)
     mask = torch.from_numpy(mask)
     return mask.to(device)
 
 
 def computeStatistics(train_loader):
     # prepare for the statistics
-    weather_surface_mean, weather_surface_std = torch.zeros(1, 4, 1, 1), torch.zeros(1, 4, 1, 1)
-    weather_mean, weather_std = torch.zeros(1, 5, 13, 1, 1), torch.zeros(1, 5, 13, 1, 1)
+    weather_surface_mean, weather_surface_std = torch.zeros(
+        1, 4, 1, 1), torch.zeros(1, 4, 1, 1)
+    weather_mean, weather_std = torch.zeros(
+        1, 5, 13, 1, 1), torch.zeros(1, 5, 13, 1, 1)
     for id, train_data in enumerate(train_loader, 0):
         input, input_surface, _, _, _ = train_data
-        weather_surface_mean += torch.mean(input_surface, dim=(-1, -2), keepdim=True)
-        weather_surface_std += torch.std(input_surface, dim=(-1, -2), keepdim=True)
+        weather_surface_mean += torch.mean(input_surface,
+                                           dim=(-1, -2), keepdim=True)
+        weather_surface_std += torch.std(input_surface,
+                                         dim=(-1, -2), keepdim=True)
         weather_mean += torch.mean(input, dim=(-1, -2), keepdim=True)
-        weather_std += torch.std(input, dim=(-1, -2), keepdim=True)  # (1,5,13,)
+        weather_std += torch.std(input, dim=(-1, -2),
+                                 keepdim=True)  # (1,5,13,)
     weather_surface_mean, weather_surface_std, weather_mean, weather_std = \
         weather_surface_mean / len(train_loader), weather_surface_std / len(train_loader), weather_mean / len(
             train_loader), weather_std / len(train_loader)
@@ -441,14 +485,17 @@ def computeStatistics(train_loader):
 
 
 def loadConstMask_h(filepath="/home/ec2-user/pangu-pytorch/aux_data", device="cpu"):
-    mask_h = np.load(os.path.join(filepath, "Constant_17_output_0.npy")).astype(np.float32)
+    mask_h = np.load(os.path.join(
+        filepath, "Constant_17_output_0.npy")).astype(np.float32)
     mask_h = torch.from_numpy(mask_h)
     return mask_h.to(device)
 
 
 def loadVariableWeights(device="cpu"):
-    upper_weights = torch.FloatTensor(cfg.PG.TRAIN.UPPER_WEIGHTS).unsqueeze(0).unsqueeze(2).unsqueeze(3).unsqueeze(4)
-    surface_weights = torch.FloatTensor(cfg.PG.TRAIN.SURFACE_WEIGHTS).unsqueeze(0).unsqueeze(2).unsqueeze(3)
+    upper_weights = torch.FloatTensor(cfg.PG.TRAIN.UPPER_WEIGHTS).unsqueeze(
+        0).unsqueeze(2).unsqueeze(3).unsqueeze(4)
+    surface_weights = torch.FloatTensor(
+        cfg.PG.TRAIN.SURFACE_WEIGHTS).unsqueeze(0).unsqueeze(2).unsqueeze(3)
     return upper_weights.to(device), surface_weights.to(device)
 
 
@@ -456,13 +503,16 @@ def loadAllConstants(device):
     constants = dict()
     constants['weather_statistics'] = weatherStatistics_input(
         device=device)  # height has inversed shape, order is reversed in model
-    constants['weather_statistics_last'] = weatherStatistics_output(device=device)
+    constants['weather_statistics_last'] = weatherStatistics_output(
+        device=device)
     # constants['constant_maps'] = LoadConstantMask(device=device)
-    constants['constant_maps'] = LoadConstantMask3(device=device) #not able to be equal
+    constants['constant_maps'] = LoadConstantMask3(
+        device=device)  # not able to be equal
     constants['variable_weights'] = loadVariableWeights(device=device)
     constants['const_h'] = loadConstMask_h(device=device)
 
     return constants
+
 
 def normData(upper, surface, statistics):
     surface_mean, surface_std, upper_mean, upper_std = (
@@ -481,10 +531,10 @@ def normBackData(upper, surface, statistics):
 
     return upper, surface
 
+
 if __name__ == "__main__":
     # dataset_path ='/home/code/data_storage_home/data/pangu'
     # means, std = LoadStatic(os.path.join(dataset_path, 'aux_data'))
     # print(means.shape) #(1, 21, 1, 1)
     a, b, c, d = weatherStatistics_input()
     print(a.shape)
-

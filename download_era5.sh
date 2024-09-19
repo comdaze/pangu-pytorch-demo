@@ -1,3 +1,5 @@
+pip install s5cmd
+
 s5cmd --no-sign-request cp 's3://nsf-ncar-era5/e5.oper.fc.sfc.meanflux/202*/e5.oper.fc.sfc.meanflux.235_055_mtpr.ll025sc.*.nc' nsf-ncar-era5/e5.oper.fc.sfc.meanflux/
 s5cmd --no-sign-request cp 's3://nsf-ncar-era5/e5.oper.an.pl/202*/e5.oper.an.pl.128_129_z.ll025sc.*.nc' nsf-ncar-era5/e5.oper.an.pl/
 s5cmd --no-sign-request cp 's3://nsf-ncar-era5/e5.oper.an.pl/202*/e5.oper.an.pl.128_130_t.ll025sc.*.nc' nsf-ncar-era5/e5.oper.an.pl/

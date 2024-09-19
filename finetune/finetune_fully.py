@@ -1,18 +1,25 @@
-import sys
-sys.path.append("/home/ec2-user/pangu-pytorch")
-from era5_data import utils, utils_data
-from era5_data.utils_dist import get_dist_info, init_dist
-from era5_data.config import cfg
-from models.pangu_model import PanguModel
-import torch
 import os
-from torch.utils import data
-from models.pangu_sample import test, train
-import argparse
-import time
-import logging
+import sys
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.append(parent_dir)
+
 from tensorboardX import SummaryWriter
+import logging
+import time
+import argparse
+
+import torch
+from torch.utils import data
 from torch.utils.data.distributed import DistributedSampler
+
+from models.pangu_sample import test, train
+from models.pangu_model import PanguModel
+from era5_data.config import cfg
+from era5_data.utils_dist import get_dist_info, init_dist
+from era5_data import utils, utils_data
+
+
 """
 Fully finetune the pretrained model
 """
@@ -48,7 +55,8 @@ if __name__ == "__main__":
     if rank == 0:
         print(f"Predicting on {device}")
 
-    output_path = os.path.join(cfg.PG_OUT_PATH, args.type_net, str(cfg.PG.HORIZON))
+    output_path = os.path.join(
+        cfg.PG_OUT_PATH, args.type_net, str(cfg.PG.HORIZON))
     utils.mkdirs(output_path)
 
     writer_path = os.path.join(output_path, "writer")
@@ -58,57 +66,57 @@ if __name__ == "__main__":
     writer = SummaryWriter(writer_path)
 
     logger_name = args.type_net + str(cfg.PG.HORIZON)
-    utils.logger_info(logger_name, os.path.join(output_path, logger_name + '.log'))
+    utils.logger_info(logger_name, os.path.join(
+        output_path, logger_name + '.log'))
 
     logger = logging.getLogger(logger_name)
 
-
     # train_dataset = utils_data.NetCDFDataset(nc_path=PATH,
     train_dataset = utils_data.PTDataset(pt_path=PATH,
-                                data_transform=None,
-                                training=True,
-                                validation = False,
-                                startDate = cfg.PG.TRAIN.START_TIME,
-                                endDate= cfg.PG.TRAIN.END_TIME,
-                                freq=cfg.PG.TRAIN.FREQUENCY,
-                                horizon=cfg.PG.HORIZON)
+                                         data_transform=None,
+                                         training=True,
+                                         validation=False,
+                                         startDate=cfg.PG.TRAIN.START_TIME,
+                                         endDate=cfg.PG.TRAIN.END_TIME,
+                                         freq=cfg.PG.TRAIN.FREQUENCY,
+                                         horizon=cfg.PG.HORIZON)
     if args.dist:
-        train_sampler = DistributedSampler(train_dataset, shuffle=True, drop_last=True)
+        train_sampler = DistributedSampler(
+            train_dataset, shuffle=True, drop_last=True)
 
         train_dataloader = data.DataLoader(dataset=train_dataset, batch_size=cfg.PG.TRAIN.BATCH_SIZE//world_size,  # replace len(opt['gpu_ids']) with world_size
-                                            num_workers=8, pin_memory=False, sampler=train_sampler)  # default: num_workers=0
+                                           num_workers=8, pin_memory=False, sampler=train_sampler)  # default: num_workers=0
     else:
         train_dataloader = data.DataLoader(dataset=train_dataset,
                                            batch_size=cfg.PG.TRAIN.BATCH_SIZE,
                                            drop_last=True, shuffle=True, num_workers=8, pin_memory=False)  # default: num_workers=0
 
-
-    dataset_length =len(train_dataloader)
+    dataset_length = len(train_dataloader)
     if rank == 0:
         print("dataset_length", dataset_length)
 
     # val_dataset = utils_data.NetCDFDataset(nc_path=PATH,
     val_dataset = utils_data.PTDataset(pt_path=PATH,
-                               data_transform=None,
-                               training=False,
-                               validation = True,
-                               startDate = cfg.PG.VAL.START_TIME,
-                               endDate= cfg.PG.VAL.END_TIME,
-                               freq=cfg.PG.VAL.FREQUENCY,
-                               horizon=cfg.PG.HORIZON)
+                                       data_transform=None,
+                                       training=False,
+                                       validation=True,
+                                       startDate=cfg.PG.VAL.START_TIME,
+                                       endDate=cfg.PG.VAL.END_TIME,
+                                       freq=cfg.PG.VAL.FREQUENCY,
+                                       horizon=cfg.PG.HORIZON)
 
     val_dataloader = data.DataLoader(dataset=val_dataset, batch_size=cfg.PG.VAL.BATCH_SIZE,
-                                          drop_last=True, shuffle=False, num_workers=8, pin_memory=False)  # default: num_workers=0
+                                     drop_last=True, shuffle=False, num_workers=8, pin_memory=False)  # default: num_workers=0
 
     # test_dataset = utils_data.NetCDFDataset(nc_path=PATH,
     test_dataset = utils_data.PTDataset(pt_path=PATH,
-                                       data_transform=None,
-                                       training=False,
-                                       validation=False,
-                                       startDate=cfg.PG.TEST.START_TIME,
-                                       endDate=cfg.PG.TEST.END_TIME,
-                                       freq=cfg.PG.TEST.FREQUENCY,
-                                       horizon=cfg.PG.HORIZON)
+                                        data_transform=None,
+                                        training=False,
+                                        validation=False,
+                                        startDate=cfg.PG.TEST.START_TIME,
+                                        endDate=cfg.PG.TEST.END_TIME,
+                                        freq=cfg.PG.TEST.FREQUENCY,
+                                        horizon=cfg.PG.HORIZON)
 
     test_dataloader = data.DataLoader(dataset=test_dataset, batch_size=cfg.PG.TEST.BATCH_SIZE,
                                       drop_last=True, shuffle=False, num_workers=8, pin_memory=False)  # default: num_workers=0
@@ -126,42 +134,45 @@ if __name__ == "__main__":
     else:
         print('cfg.PG.HORIZON:', cfg.PG.HORIZON, 'NO CHECKPOINT FOUND')
     model.load_state_dict(checkpoint['model'])
-    #Fully finetune
+    # Fully finetune
     for param in model.parameters():
         param.requires_grad = True
 
-    optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr = cfg.PG.TRAIN.LR , weight_decay= cfg.PG.TRAIN.WEIGHT_DECAY)
+    optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters(
+    )), lr=cfg.PG.TRAIN.LR, weight_decay=cfg.PG.TRAIN.WEIGHT_DECAY)
 
     if rank == 0:
         msg = '\n'
         msg += utils.torch_summarize(model, show_weights=False)
         logger.info(msg)
 
-    #weather_statistics = utils.LoadStatic_pretrain()
+    # weather_statistics = utils.LoadStatic_pretrain()
     if rank == 0:
         print("weather statistics are loaded!")
     torch.set_num_threads(cfg.GLOBAL.NUM_THREADS)
 
-    lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[25, 50], gamma=0.5)
+    lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(
+        optimizer, milestones=[25, 50], gamma=0.5)
     start_epoch = 1
 
     model = train(model, train_loader=train_dataloader,
-                     val_loader=val_dataloader,
-                     optimizer=optimizer,
-                     lr_scheduler=lr_scheduler,
-                     res_path = output_path,
-                     device=device,
-                     writer=writer, logger = logger, start_epoch=start_epoch, rank=rank)
+                  val_loader=val_dataloader,
+                  optimizer=optimizer,
+                  lr_scheduler=lr_scheduler,
+                  res_path=output_path,
+                  device=device,
+                  writer=writer, logger=logger, start_epoch=start_epoch, rank=rank)
 
     if rank == 0:
         if args.load_my_best:
-            best_model = torch.load(os.path.join(output_path,"models/best_model.pth"),map_location=device)  # 'cuda:0'
+            best_model = torch.load(os.path.join(
+                output_path, "models/best_model.pth"), map_location=device)  # 'cuda:0'
 
         logger.info("Begin testing...")
 
         test(test_loader=test_dataloader,
-            model=best_model,
-            device=device,
-            res_path=output_path)
+             model=best_model,
+             device=device,
+             res_path=output_path)
 
-#CUDA_VISIBLE_DEVICES=0,1,2,3 nohup python -m torch.distributed.launch --nproc_per_node=4 --master_port=1234 finetune_lastLayer_ddp.py --dist True
+# CUDA_VISIBLE_DEVICES=0,1,2,3 nohup python -m torch.distributed.launch --nproc_per_node=4 --master_port=1234 finetune_lastLayer_ddp.py --dist True

@@ -1,20 +1,18 @@
-import xarray as xr
-from datetime import datetime, timedelta
+import os
+import sys
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.append(parent_dir)
+
+import logging
 import pandas as pd
 import numpy as np
-import sys
-sys.path.append("/home/ec2-user/pangu-pytorch")
-from era5_data.config import cfg
-from typing import Tuple, List
-import torch
-import random
-from torch.utils import data
-from torchvision import transforms as T
-import os
-import time
-from torch.nn.modules.module import _addindent
 import matplotlib.pyplot as plt
-import logging
+
+import torch
+from torch.nn.modules.module import _addindent
+
+from era5_data.config import cfg
 
 
 def logger_info(logger_name, log_path='default_logger.log'):
@@ -27,7 +25,8 @@ def logger_info(logger_name, log_path='default_logger.log'):
     else:
         print('LogHandlers setup!')
         level = logging.INFO
-        formatter = logging.Formatter('%(asctime)s.%(msecs)03d : %(message)s', datefmt='%y-%m-%d %H:%M:%S')
+        formatter = logging.Formatter(
+            '%(asctime)s.%(msecs)03d : %(message)s', datefmt='%y-%m-%d %H:%M:%S')
         fh = logging.FileHandler(log_path, mode='a')
         fh.setFormatter(formatter)
         log.setLevel(level)
@@ -66,7 +65,8 @@ def visuailze(output, target, input, var, z, step, path):
     fig = plt.figure(figsize=(16, 2))
     ax1 = fig.add_subplot(143)
 
-    plot1 = ax1.imshow(output[var, z, :, :], cmap="RdBu")  # , levels = levels, extend = 'min')
+    # , levels = levels, extend = 'min')
+    plot1 = ax1.imshow(output[var, z, :, :], cmap="RdBu")
     plt.colorbar(plot1, ax=ax1, fraction=0.05, pad=0.05)
     ax1.title.set_text('pred')
 
@@ -81,13 +81,15 @@ def visuailze(output, target, input, var, z, step, path):
     ax3.title.set_text('input')
 
     ax4 = fig.add_subplot(144)
-    plot4 = ax4.imshow(output[var, z, :, :] - target[var, z, :, :], cmap="RdBu")
+    plot4 = ax4.imshow(output[var, z, :, :] -
+                       target[var, z, :, :], cmap="RdBu")
     plt.colorbar(plot4, ax=ax4, fraction=0.05, pad=0.05)
     ax4.title.set_text('bias')
 
     plt.tight_layout()
-    plt.savefig(fname=os.path.join(path, '{}_{}_Z{}'.format(step, variables[var], z)))
-    
+    plt.savefig(fname=os.path.join(
+        path, '{}_{}_Z{}'.format(step, variables[var], z)))
+
     plt.close()
 
 
@@ -98,7 +100,8 @@ def visuailze_surface(output, target, input, var, step, path):
     ax1 = fig.add_subplot(143)
     # ? to do?
     # levels = np.linspace(93000, 105000, 9)
-    plot1 = ax1.imshow(output[var, :, :], cmap="RdBu")  # , levels = levels, extend = 'min')
+    # , levels = levels, extend = 'min')
+    plot1 = ax1.imshow(output[var, :, :], cmap="RdBu")
     plt.colorbar(plot1, ax=ax1, fraction=0.05, pad=0.05)
     ax1.title.set_text('pred')
 
@@ -119,7 +122,7 @@ def visuailze_surface(output, target, input, var, step, path):
 
     plt.tight_layout()
     plt.savefig(fname=os.path.join(path, '{}_{}'.format(step, variables[var])))
-    
+
     plt.close()
 
 
@@ -139,7 +142,8 @@ def mkdirs(paths):
 def torch_summarize(model, show_weights=False, show_parameters=False, show_gradients=False):
     """Summarizes torch model by showing trainable parameters and weights."""
     tmpstr = model.__class__.__name__ + ' (\n'
-    total_params = sum([np.prod(p.size()) for p in filter(lambda p: p.requires_grad, model.parameters())])
+    total_params = sum([np.prod(p.size()) for p in filter(
+        lambda p: p.requires_grad, model.parameters())])
     tmpstr += ', total parameters={}'.format(total_params)
     for key, module in model._modules.items():
         # if it contains layers let call it recursively to get params and weights
@@ -152,9 +156,12 @@ def torch_summarize(model, show_weights=False, show_parameters=False, show_gradi
             modstr = module.__repr__()
         modstr = _addindent(modstr, 2)
 
-        params = sum([np.prod(p.size()) for p in filter(lambda p: p.requires_grad, module.parameters())])
-        weights = tuple([tuple(p.size()) for p in filter(lambda p: p.requires_grad, module.parameters())])
-        grads = tuple([str(p.requires_grad) for p in filter(lambda p: p.requires_grad, module.parameters())])
+        params = sum([np.prod(p.size()) for p in filter(
+            lambda p: p.requires_grad, module.parameters())])
+        weights = tuple([tuple(p.size()) for p in filter(
+            lambda p: p.requires_grad, module.parameters())])
+        grads = tuple([str(p.requires_grad) for p in filter(
+            lambda p: p.requires_grad, module.parameters())])
 
         tmpstr += '  (' + key + '): ' + modstr
         if show_weights:
@@ -171,23 +178,23 @@ def torch_summarize(model, show_weights=False, show_parameters=False, show_gradi
 
 def save_errorScores(csv_path, z, q, t, u, v, surface, error):
     score_upper_z = pd.DataFrame.from_dict(z,
-                                orient='index',
-                                columns=cfg.ERA5_UPPER_LEVELS)
+                                           orient='index',
+                                           columns=cfg.ERA5_UPPER_LEVELS)
     score_upper_q = pd.DataFrame.from_dict(q,
-                                orient='index',
-                                columns=cfg.ERA5_UPPER_LEVELS)
+                                           orient='index',
+                                           columns=cfg.ERA5_UPPER_LEVELS)
     score_upper_t = pd.DataFrame.from_dict(t,
-                                orient='index',
-                                columns=cfg.ERA5_UPPER_LEVELS)
+                                           orient='index',
+                                           columns=cfg.ERA5_UPPER_LEVELS)
     score_upper_u = pd.DataFrame.from_dict(u,
-                                orient='index',
-                                columns=cfg.ERA5_UPPER_LEVELS)
+                                           orient='index',
+                                           columns=cfg.ERA5_UPPER_LEVELS)
     score_upper_v = pd.DataFrame.from_dict(v,
-                                orient='index',
-                                columns=cfg.ERA5_UPPER_LEVELS)
+                                           orient='index',
+                                           columns=cfg.ERA5_UPPER_LEVELS)
     score_surface = pd.DataFrame.from_dict(surface,
-                                orient='index',
-                                columns=cfg.ERA5_SURFACE_VARIABLES)
+                                           orient='index',
+                                           columns=cfg.ERA5_SURFACE_VARIABLES)
 
     score_upper_z.to_csv("{}/{}.csv".format(csv_path, f'{error}_upper_z'))
     score_upper_q.to_csv("{}/{}.csv".format(csv_path, f'{error}_upper_q'))
@@ -195,6 +202,7 @@ def save_errorScores(csv_path, z, q, t, u, v, surface, error):
     score_upper_u.to_csv("{}/{}.csv".format(csv_path, f'{error}_upper_u'))
     score_upper_v.to_csv("{}/{}.csv".format(csv_path, f'{error}_upper_v'))
     score_surface.to_csv("{}/{}.csv".format(csv_path, f'{error}_surface'))
+
 
 if __name__ == "__main__":
 
@@ -262,5 +270,3 @@ if __name__ == "__main__":
     elapsed = str(timedelta(seconds=elapsed))
     print("Elapsed [{}]".format(elapsed))
     """
-
-
