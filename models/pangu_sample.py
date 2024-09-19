@@ -106,9 +106,10 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
             with torch.no_grad():
                 model.eval()
                 val_loss = 0.0
-                for id, val_data in enumerate(val_loader, 0):
+                # for id, val_data in enumerate(val_loader, 0):
+                for val_data in tqdm(val_loader):
                     input_val, input_surface_val, target_val, target_surface_val, periods_val = val_data
-                    input_val_raw, input_surface_val_raw = input_val, input_surface_val
+                    # input_val_raw, input_surface_val_raw = input_val, input_surface_val
                     input_val, input_surface_val, target_val, target_surface_val = input_val.to(
                         device), input_surface_val.to(device), target_val.to(device), target_surface_val.to(device)
 
@@ -148,14 +149,16 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
 
                 utils.visuailze(output_val.detach().cpu().squeeze(),
                                 target_val.detach().cpu().squeeze(),
-                                input_val_raw.squeeze(),
+                                # input_val_raw.squeeze(),
+                                input_val.detach().cpu().squeeze(),
                                 var='u',
                                 z=12,
                                 step=i,
                                 path=png_path)
                 utils.visuailze_surface(output_surface_val.detach().cpu().squeeze(),
                                         target_surface_val.detach().cpu().squeeze(),
-                                        input_surface_val_raw.squeeze(),
+                                        # input_surface_val_raw.squeeze(),
+                                        input_surface_val.detach().cpu().squeeze(),
                                         var='msl',
                                         step=i,
                                         path=png_path)
@@ -191,9 +194,10 @@ def test(test_loader, model, device, res_path):
     aux_constants = utils_data.loadAllConstants(device=device)
 
     batch_id = 0
-    for id, data in enumerate(test_loader, 0):
+    # for id, data in enumerate(test_loader, 0):
+    for data in tqdm(test_loader):
         # Store initial input for different models
-        print(f"predict on {id}")
+        # print(f"predict on {id}")
         input_test, input_surface_test, target_test, target_surface_test, periods_test = data
         input_test, input_surface_test, target_test, target_surface_test = \
             input_test.to(device), input_surface_test.to(device), target_test.to(device), target_surface_test.to(device)

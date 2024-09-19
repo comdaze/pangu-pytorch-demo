@@ -62,7 +62,8 @@ if __name__ == "__main__":
     logger = logging.getLogger(logger_name)
 
 
-    train_dataset = utils_data.NetCDFDataset(nc_path=PATH,
+    # train_dataset = utils_data.NetCDFDataset(nc_path=PATH,
+    train_dataset = utils_data.PTDataset(pt_path=PATH,
                                 data_transform=None,
                                 training=True,
                                 validation = False,
@@ -85,7 +86,8 @@ if __name__ == "__main__":
     if rank == 0:
         print("dataset_length", dataset_length)
 
-    val_dataset = utils_data.NetCDFDataset(nc_path=PATH,
+    # val_dataset = utils_data.NetCDFDataset(nc_path=PATH,
+    val_dataset = utils_data.PTDataset(pt_path=PATH,
                                data_transform=None,
                                training=False,
                                validation = True,
@@ -95,9 +97,10 @@ if __name__ == "__main__":
                                horizon=cfg.PG.HORIZON)
 
     val_dataloader = data.DataLoader(dataset=val_dataset, batch_size=cfg.PG.VAL.BATCH_SIZE,
-                                          drop_last=True, shuffle=False, num_workers=0, pin_memory=False)
+                                          drop_last=True, shuffle=False, num_workers=8, pin_memory=False)  # default: num_workers=0
 
-    test_dataset = utils_data.NetCDFDataset(nc_path=PATH,
+    # test_dataset = utils_data.NetCDFDataset(nc_path=PATH,
+    test_dataset = utils_data.PTDataset(pt_path=PATH,
                                        data_transform=None,
                                        training=False,
                                        validation=False,
@@ -107,7 +110,7 @@ if __name__ == "__main__":
                                        horizon=cfg.PG.HORIZON)
 
     test_dataloader = data.DataLoader(dataset=test_dataset, batch_size=cfg.PG.TEST.BATCH_SIZE,
-                                      drop_last=True, shuffle=False, num_workers=0, pin_memory=False)
+                                      drop_last=True, shuffle=False, num_workers=8, pin_memory=False)  # default: num_workers=0
 
     model = PanguModel(device=device).to(device)
 
