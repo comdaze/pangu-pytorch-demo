@@ -320,7 +320,7 @@ class PTDataset(data.Dataset):
         input_surface = torch.load(os.path.join(self.pt_path, 'surface', 'surface_{}.pt'.format(start_time_str)), weights_only=False, map_location=device)  # 201501
             
         # Prepare the input_upper dataset
-        input = torch.load(os.path.join(self.pt_path, 'upper', 'upper_{}.pt'.format(start_time_str)))
+        input = torch.load(os.path.join(self.pt_path, 'upper', 'upper_{}.pt'.format(start_time_str)), weights_only=False, map_location=device)
 
         # print('input:', input.shape)
         # print('input_surface:', input_surface.shape)
@@ -331,7 +331,7 @@ class PTDataset(data.Dataset):
         target_surface = torch.load(os.path.join(self.pt_path, 'surface', 'surface_{}.pt'.format(end_time_str)), weights_only=False, map_location=device)  # 201501
 
         # Prepare the target upper dataset
-        target = torch.load(os.path.join(self.pt_path, 'upper', 'upper_{}.pt'.format(end_time_str)))
+        target = torch.load(os.path.join(self.pt_path, 'upper', 'upper_{}.pt'.format(end_time_str)), weights_only=False, map_location=device)
         
         # print('target:', target.shape)
         # print('target_surface:', target_surface.shape)

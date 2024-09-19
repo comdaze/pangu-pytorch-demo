@@ -37,7 +37,7 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
         epoch_loss = 0.0
 
         # for id, train_data in enumerate(train_loader):
-        for train_data in tqdm(train_loader):
+        for train_data in tqdm(train_loader, desc=f'Training rank {rank}'):
             # Load weather data at time t as the input; load weather data at time t+336 as the output
             # Note the data need to be randomly shuffled
             input, input_surface, target, target_surface, periods = train_data
@@ -108,7 +108,7 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
                     model.eval()
                     val_loss = 0.0
                     # for id, val_data in enumerate(val_loader, 0):
-                    for val_data in tqdm(val_loader):
+                    for val_data in tqdm(val_loader, desc='Validating'):
                         input_val, input_surface_val, target_val, target_surface_val, periods_val = val_data
                         # input_val_raw, input_surface_val_raw = input_val, input_surface_val
                         input_val, input_surface_val, target_val, target_surface_val = input_val.to(
@@ -196,7 +196,7 @@ def test(test_loader, model, device, res_path):
 
     batch_id = 0
     # for id, data in enumerate(test_loader, 0):
-    for data in tqdm(test_loader):
+    for data in tqdm(test_loader, desc='Testing'):
         # Store initial input for different models
         # print(f"predict on {id}")
         input_test, input_surface_test, target_test, target_surface_test, periods_test = data
