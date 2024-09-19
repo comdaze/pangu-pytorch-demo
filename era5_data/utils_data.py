@@ -238,6 +238,131 @@ class NetCDFDataset(data.Dataset):
         return self.__class__.__name__
 
 
+class PTDataset(data.Dataset):
+    """Dataset class for the era5 upper and surface variables."""
+
+    def __init__(self,
+                 pt_path='/home/code/data_storage_home/data/pangu',
+                 data_transform=None,
+                 seed=1234,
+                 training=True,
+                 validation=False,
+                 startDate='20150101',
+                 endDate='20150102',
+                 freq='H',
+                 horizon=5):
+        """Initialize."""
+        self.horizon = horizon
+        self.pt_path = pt_path
+        """
+        To do
+        if start and end is valid date, if the date can be found in the downloaded files, length >= 0
+
+        """
+        # Prepare the datetime objects for training, validation, and test
+        self.training = training
+        self.validation = validation
+        self.data_transform = data_transform
+
+        if training:
+            self.keys = list(pd.date_range(start=startDate, end=endDate, freq=freq))
+            # self.keys = (list(set(self.keys))) #disordered keys
+            # total length that we can predict
+            """
+            To do
+            length should >=0 horizon <= len
+            """
+        elif validation:
+            self.keys = list(pd.date_range(start=startDate, end=endDate, freq=freq))
+            # self.keys = (list(set(self.keys)))
+
+        else:
+            self.keys = list(pd.date_range(start=startDate, end=endDate, freq=freq))
+            # self.keys = (list(set(self.keys)))
+            # end_time = self.keys[0] + timedelta(hours = self.horizon)
+        # self.length = len(self.keys) - horizon // 12 - 1  # TODO Why horizon // 12 ?
+        self.length = len(self.keys) - horizon // int(freq[:-1]) - 1
+        
+        print('self.keys:', len(self.keys), self.keys)
+        print('self.length:', self.length)
+
+        random.seed(seed)
+
+    def LoadData(self, key):
+        """
+        Input
+            key: datetime object, input time
+        Return
+            input: numpy
+            input_surface: numpy
+            target: numpy label
+            target_surface: numpy label
+            (start_time_str, end_time_str): string, datetime(target time - input time) = horizon
+        """
+        # start_time datetime obj
+        start_time = key
+        # convert datetime obj to string for matching file name and return key
+        start_time_str = datetime.strftime(key, '%Y%m%d%H')
+
+        # target time = start time + horizon
+        end_time = key + timedelta(hours=self.horizon)  # TODO: 这里有问题，其实是把horizon当timestep用了
+        end_time_str = end_time.strftime('%Y%m%d%H')
+        
+        # print('start_time_str:', start_time_str)
+        # print('end_time_str:', end_time_str)
+        
+        device = torch.device(f'cuda:{torch.cuda.current_device()}' if torch.cuda.is_available() else 'cpu')
+        # device = 'cpu'
+        # print('device:', device)
+
+        # Prepare the input_surface dataset
+        # print(start_time_str[0:6])
+        input_surface = torch.load(os.path.join(self.pt_path, 'surface', 'surface_{}.pt'.format(start_time_str)), weights_only=False, map_location=device)  # 201501
+            
+        # Prepare the input_upper dataset
+        input = torch.load(os.path.join(self.pt_path, 'upper', 'upper_{}.pt'.format(start_time_str)))
+
+        # print('input:', input.shape)
+        # print('input_surface:', input_surface.shape)
+        assert input_surface.shape == (4, 721, 1440)
+        assert input.shape == (5, 13, 721, 1440)
+        
+        # Prepare the target_surface dataset
+        target_surface = torch.load(os.path.join(self.pt_path, 'surface', 'surface_{}.pt'.format(end_time_str)), weights_only=False, map_location=device)  # 201501
+
+        # Prepare the target upper dataset
+        target = torch.load(os.path.join(self.pt_path, 'upper', 'upper_{}.pt'.format(end_time_str)))
+        
+        # print('target:', target.shape)
+        # print('target_surface:', target_surface.shape)
+        assert target_surface.shape == (4, 721, 1440)
+        assert target.shape == (5, 13, 721, 1440)
+
+        return input, input_surface, target, target_surface, (start_time_str, end_time_str)
+
+    def __getitem__(self, index):
+        """Return input frames, target frames, and its corresponding time steps."""
+        
+        iii = self.keys[index]
+        LoadData_start = time.time()
+        input, input_surface, target, target_surface, periods = self.LoadData(iii)
+        LoadData_end = time.time()
+        # print('LoadData time:', LoadData_end-LoadData_start)
+        
+        if self.training:
+            if self.data_transform is not None:
+                input = self.data_transform(input)
+                input_surface = self.data_transform(input_surface)
+
+        return input, input_surface, target, target_surface, periods
+
+    def __len__(self):
+        return self.length
+
+    def __repr__(self):
+        return self.__class__.__name__
+    
+
 def weatherStatistics_output(filepath="/home/ec2-user/pangu-pytorch/aux_data", device="cpu"):
     """
     :return:1, 5, 13, 1, 1

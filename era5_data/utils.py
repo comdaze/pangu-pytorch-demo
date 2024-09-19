@@ -87,6 +87,8 @@ def visuailze(output, target, input, var, z, step, path):
 
     plt.tight_layout()
     plt.savefig(fname=os.path.join(path, '{}_{}_Z{}'.format(step, variables[var], z)))
+    
+    plt.close()
 
 
 def visuailze_surface(output, target, input, var, step, path):
@@ -117,6 +119,8 @@ def visuailze_surface(output, target, input, var, step, path):
 
     plt.tight_layout()
     plt.savefig(fname=os.path.join(path, '{}_{}'.format(step, variables[var])))
+    
+    plt.close()
 
 
 def mkdir(path):
