@@ -9,7 +9,7 @@ __C.GLOBAL = edict()
 __C.GLOBAL.DEVICE = torch.device(
     "cuda" if torch.cuda.is_available() else "cpu")
 __C.GLOBAL.BATCH_SZIE = 1
-for dirs in ['/home/ec2-user/pangu-pytorch']:
+for dirs in ['/home/ec2-user/pangu-pytorch', '/opt/ml/model']:
     if os.path.exists(dirs):
         __C.GLOBAL.PATH = dirs
 assert __C.GLOBAL.PATH is not None
@@ -18,7 +18,8 @@ __C.GLOBAL.NUM_THREADS = 16
 
 
 # __C.ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-__C.PG_INPUT_PATH = '/home/ec2-user/pangu-pytorch'
+# __C.PG_INPUT_PATH = '/home/ec2-user/pangu-pytorch'
+__C.PG_INPUT_PATH = '/opt/ml/input/data/'
 assert __C.PG_INPUT_PATH is not None
 
 __C.PG_OUT_PATH = os.path.join(__C.GLOBAL.PATH, 'result')
