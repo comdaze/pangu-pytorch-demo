@@ -43,7 +43,7 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
         epoch_loss = 0.0
 
         # for id, train_data in enumerate(train_loader):
-        for train_data in tqdm(train_loader, desc=f'Training rank {rank}'):
+        for train_data in tqdm(train_loader, desc=f'Training epoch {epoch} rank {rank}'):
             
             # if rank == 0:
             #     print(f'Epoch: {i}', '*'*20)
