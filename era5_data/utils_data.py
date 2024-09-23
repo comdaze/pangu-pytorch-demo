@@ -501,15 +501,15 @@ def loadVariableWeights(device="cpu"):
 
 def loadAllConstants(device):
     constants = dict()
-    constants['weather_statistics'] = weatherStatistics_input(
+    constants['weather_statistics'] = weatherStatistics_input(filepath=os.path.join(cfg.PG_INPUT_PATH, 'aux_data'), 
         device=device)  # height has inversed shape, order is reversed in model
-    constants['weather_statistics_last'] = weatherStatistics_output(
+    constants['weather_statistics_last'] = weatherStatistics_output(filepath=os.path.join(cfg.PG_INPUT_PATH, 'aux_data'), 
         device=device)
     # constants['constant_maps'] = LoadConstantMask(device=device)
-    constants['constant_maps'] = LoadConstantMask3(
+    constants['constant_maps'] = LoadConstantMask3(filepath=os.path.join(cfg.PG_INPUT_PATH, 'aux_data'), 
         device=device)  # not able to be equal
     constants['variable_weights'] = loadVariableWeights(device=device)
-    constants['const_h'] = loadConstMask_h(device=device)
+    constants['const_h'] = loadConstMask_h(filepath=os.path.join(cfg.PG_INPUT_PATH, 'aux_data'), device=device)
 
     return constants
 
