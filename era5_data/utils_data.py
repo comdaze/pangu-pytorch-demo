@@ -374,7 +374,7 @@ class PTDataset(data.Dataset):
         input, input_surface, target, target_surface, periods = self.LoadData(
             iii)
         LoadData_end = time.time()
-        # print('LoadData time:', LoadData_end-LoadData_start)
+        print('LoadData time:', LoadData_end-LoadData_start)
 
         if self.training:
             if self.data_transform is not None:
