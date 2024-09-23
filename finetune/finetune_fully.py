@@ -12,6 +12,7 @@ import argparse
 import torch
 from torch.utils import data
 from torch.utils.data.distributed import DistributedSampler
+from torch.nn.parallel import DistributedDataParallel as DDP
 
 from models.pangu_sample import test, train
 from models.pangu_model import PanguModel
@@ -78,7 +79,8 @@ if __name__ == "__main__":
                                          startDate=cfg.PG.TRAIN.START_TIME,
                                          endDate=cfg.PG.TRAIN.END_TIME,
                                          freq=cfg.PG.TRAIN.FREQUENCY,
-                                         horizon=cfg.PG.HORIZON)
+                                         horizon=cfg.PG.HORIZON,
+                                         device='cpu')  # device
     if args.dist:
         train_sampler = DistributedSampler(
             train_dataset, shuffle=True, drop_last=True)
@@ -102,7 +104,8 @@ if __name__ == "__main__":
                                        startDate=cfg.PG.VAL.START_TIME,
                                        endDate=cfg.PG.VAL.END_TIME,
                                        freq=cfg.PG.VAL.FREQUENCY,
-                                       horizon=cfg.PG.HORIZON)
+                                       horizon=cfg.PG.HORIZON,
+                                       device='cpu')  # device
 
     val_dataloader = data.DataLoader(dataset=val_dataset, batch_size=cfg.PG.VAL.BATCH_SIZE,
                                      drop_last=True, shuffle=False, num_workers=8, pin_memory=False)  # default: num_workers=0
@@ -115,7 +118,8 @@ if __name__ == "__main__":
                                         startDate=cfg.PG.TEST.START_TIME,
                                         endDate=cfg.PG.TEST.END_TIME,
                                         freq=cfg.PG.TEST.FREQUENCY,
-                                        horizon=cfg.PG.HORIZON)
+                                        horizon=cfg.PG.HORIZON,
+                                        device='cpu')  # device
 
     test_dataloader = data.DataLoader(dataset=test_dataset, batch_size=cfg.PG.TEST.BATCH_SIZE,
                                       drop_last=True, shuffle=False, num_workers=8, pin_memory=False)  # default: num_workers=0
@@ -137,6 +141,8 @@ if __name__ == "__main__":
     # Fully finetune
     for param in model.parameters():
         param.requires_grad = True
+        
+    model = DDP(model)  # Use DistributedDataParallel
 
     optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters(
     )), lr=cfg.PG.TRAIN.LR, weight_decay=cfg.PG.TRAIN.WEIGHT_DECAY)

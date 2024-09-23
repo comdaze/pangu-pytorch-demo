@@ -14,6 +14,7 @@ import torch
 from torch import nn
 from torch.utils import data
 from torch.utils.data.distributed import DistributedSampler
+from torch.nn.parallel import DistributedDataParallel as DDP
 
 from peft import LoraConfig, get_peft_model
 
@@ -169,6 +170,8 @@ if __name__ == "__main__":
         lr_scheduler.load_state_dict(cpk['lr_scheduler'])
         start_epoch = cpk["epoch"]
 
+    peft_model = DDP(peft_model)  # Use DistributedDataParallel
+    
     peft_model = train(peft_model, train_loader=train_dataloader,
                        val_loader=val_dataloader,
                        optimizer=optimizer,

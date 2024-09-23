@@ -97,6 +97,7 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
     # Train a single Pangu-Weather model
     for i in range(start_epoch, epochs + 1):
         epoch_loss = 0.0
+        epoch_start = time.time()
 
         # for id, train_data in enumerate(train_loader):
         for train_data in tqdm(train_loader, desc=f'Training epoch {i} rank {rank}'):
@@ -110,7 +111,7 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
             #             print(f'Epoch: {i}', os.path.join(root, filename), size/1024)
             #     print(f'Epoch: {i}', '#'*20)
 
-            monitor_system(interval=1, duration=1)
+            # monitor_system(interval=1, duration=1)
 
             # Load weather data at time t as the input; load weather data at time t+336 as the output
             # Note the data need to be randomly shuffled
@@ -155,8 +156,9 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
             epoch_loss += loss.item()
 
         epoch_loss /= len(train_loader)
-        if rank == 0:
-            logger.info("Epoch {} : {:.3f}".format(i, epoch_loss))
+        epoch_end = time.time()
+        logger.info("Epoch {} Rank {}: loss={:.3f}, time={:.3f}".format(i, rank, epoch_loss, epoch_end-epoch_start))
+        
         loss_list.append(epoch_loss)
         lr_scheduler.step()
         # scaler.update(lr_scheduler)

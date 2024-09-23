@@ -268,9 +268,11 @@ class PTDataset(data.Dataset):
                  startDate='20150101',
                  endDate='20150102',
                  freq='H',
-                 horizon=5):
+                 horizon=5,
+                 device='cpu'):
         """Initialize."""
         self.horizon = horizon
+        self.device = device
         self.pt_path = pt_path
         """
         To do
@@ -334,17 +336,17 @@ class PTDataset(data.Dataset):
         # print('end_time_str:', end_time_str)
 
         # device = torch.device(f'cuda:{torch.cuda.current_device()}' if torch.cuda.is_available() else 'cpu')
-        device = 'cpu'
+        # device = 'cpu'
         # print('device:', device)
 
         # Prepare the input_surface dataset
         # print(start_time_str[0:6])
         input_surface = torch.load(os.path.join(self.pt_path, 'surface', 'surface_{}.pt'.format(
-            start_time_str)), weights_only=False, map_location=device)  # 201501
+            start_time_str)), weights_only=False, map_location=self.device)  # 201501
 
         # Prepare the input_upper dataset
         input = torch.load(os.path.join(self.pt_path, 'upper', 'upper_{}.pt'.format(
-            start_time_str)), weights_only=False, map_location=device)
+            start_time_str)), weights_only=False, map_location=self.device)
 
         # print('input:', input.shape)
         # print('input_surface:', input_surface.shape)
@@ -353,11 +355,11 @@ class PTDataset(data.Dataset):
 
         # Prepare the target_surface dataset
         target_surface = torch.load(os.path.join(self.pt_path, 'surface', 'surface_{}.pt'.format(
-            end_time_str)), weights_only=False, map_location=device)  # 201501
+            end_time_str)), weights_only=False, map_location=self.device)  # 201501
 
         # Prepare the target upper dataset
         target = torch.load(os.path.join(self.pt_path, 'upper', 'upper_{}.pt'.format(
-            end_time_str)), weights_only=False, map_location=device)
+            end_time_str)), weights_only=False, map_location=self.device)
 
         # print('target:', target.shape)
         # print('target_surface:', target_surface.shape)
@@ -374,7 +376,7 @@ class PTDataset(data.Dataset):
         input, input_surface, target, target_surface, periods = self.LoadData(
             iii)
         LoadData_end = time.time()
-        print('LoadData time:', LoadData_end-LoadData_start)
+        # print('LoadData time:', LoadData_end-LoadData_start)
 
         if self.training:
             if self.data_transform is not None:
