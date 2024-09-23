@@ -19,7 +19,7 @@ __C.GLOBAL.NUM_THREADS = 16
 
 # __C.ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 
-if __C.GLOBAL.PATH.startswith('/opt/ml')
+if __C.GLOBAL.PATH.startswith('/opt/ml'):
     __C.PG_INPUT_PATH = os.path.join(__C.GLOBAL.PATH, 'input/data/')
 else:
     __C.PG_INPUT_PATH = __C.GLOBAL.PATH
