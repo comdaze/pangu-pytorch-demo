@@ -6,6 +6,8 @@ sys.path.append(parent_dir)
 
 from tqdm import tqdm
 import copy
+import time
+import subprocess
 
 import torch
 from torch import nn
@@ -13,6 +15,60 @@ from torch import nn
 from era5_data import score
 from era5_data.config import cfg
 from era5_data import utils, utils_data
+
+
+def get_gpu_info():
+    try:
+        output = subprocess.check_output(['nvidia-smi', '--query-gpu=utilization.gpu,memory.used,memory.total', '--format=csv,noheader,nounits'])
+        return [line.split(', ') for line in output.decode('utf-8').strip().split('\n')]
+    except subprocess.CalledProcessError:
+        return None
+    except FileNotFoundError:
+        return None
+
+    
+def get_disk_info():
+    try:
+        output = subprocess.check_output(['df', '-h'], universal_newlines=True)
+        lines = output.strip().split('\n')
+        return [line.split() for line in lines[1:]]  # Skip the header
+    except subprocess.CalledProcessError:
+        return None
+
+    
+def human_readable_size(size):
+    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+        if size < 1024.0:
+            return f"{size:.1f}{unit}"
+        size /= 1024.0
+
+        
+def monitor_system(interval=5, duration=60):
+    end_time = time.time() + duration
+    while time.time() < end_time:
+        print("\n" + "="*50)
+        print(f"System Monitor - {time.strftime('%Y-%m-%d %H:%M:%S')}")
+        print("="*50)
+
+        # Monitor GPU
+        gpu_info = get_gpu_info()
+        if gpu_info:
+            print("\nGPU Status:")
+            for i, (util, mem_used, mem_total) in enumerate(gpu_info):
+                print(f"GPU {i}: Utilization {util}%, Memory {mem_used}/{mem_total} MB")
+        else:
+            print("\nGPU information not available")
+
+        # Monitor Disk
+        disk_info = get_disk_info()
+        if disk_info:
+            print("\nDisk Usage:")
+            for filesystem, size, used, avail, use_percent, mounted_on in disk_info:
+                print(f"{mounted_on}: {use_percent} used ({used}/{size})")
+        else:
+            print("\nDisk information not available")
+
+        time.sleep(interval)
 
 
 def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, device, writer, logger, start_epoch,
@@ -53,7 +109,9 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
             #             size = os.path.getsize(filepath)
             #             print(f'Epoch: {i}', os.path.join(root, filename), size/1024)
             #     print(f'Epoch: {i}', '#'*20)
-                    
+
+            monitor_system(interval=1, duration=1)
+
             # Load weather data at time t as the input; load weather data at time t+336 as the output
             # Note the data need to be randomly shuffled
             input, input_surface, target, target_surface, periods = train_data
