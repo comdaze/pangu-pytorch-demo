@@ -5,3 +5,4 @@ netcdf4
 peft
 onnx
 onnxruntime-gpu
+tenacity
