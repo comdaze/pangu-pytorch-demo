@@ -92,7 +92,7 @@ if __name__ == "__main__":
     else:
         train_dataloader = data.DataLoader(dataset=train_dataset,
                                            batch_size=cfg.PG.TRAIN.BATCH_SIZE,
-                                           drop_last=True, shuffle=True, num_workers=8, pin_memory=False)  # default: num_workers=0
+                                           drop_last=True, shuffle=True, num_workers=4, pin_memory=False)  # default: num_workers=0
 
     dataset_length = len(train_dataloader)
     if rank == 0:
@@ -110,7 +110,7 @@ if __name__ == "__main__":
                                        device='cpu')  # device
 
     val_dataloader = data.DataLoader(dataset=val_dataset, batch_size=cfg.PG.VAL.BATCH_SIZE,
-                                     drop_last=True, shuffle=False, num_workers=8, pin_memory=False)  # default: num_workers=0
+                                     drop_last=True, shuffle=False, num_workers=4, pin_memory=False)  # default: num_workers=0
 
     # test_dataset = utils_data.NetCDFDataset(nc_path=PATH,
     test_dataset = utils_data.PTDataset(pt_path=PATH,
@@ -124,7 +124,7 @@ if __name__ == "__main__":
                                         device='cpu')  # device
 
     test_dataloader = data.DataLoader(dataset=test_dataset, batch_size=cfg.PG.TEST.BATCH_SIZE,
-                                      drop_last=True, shuffle=False, num_workers=8, pin_memory=False)  # default: num_workers=0
+                                      drop_last=True, shuffle=False, num_workers=4, pin_memory=False)  # default: num_workers=0
 
     model = PanguModel(device=device).to(device)
 
