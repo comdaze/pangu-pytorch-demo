@@ -102,7 +102,8 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
         # for id, train_data in enumerate(train_loader):
         for train_data in tqdm(train_loader, desc=f'Training epoch {i} rank {rank}'):
             
-            # if rank == 0:
+            if rank == 0:
+                monitor_system(interval=1, duration=1)
             #     print(f'Epoch: {i}', '*'*20)
             #     for root, dirs, files in os.walk(cfg.PG_INPUT_PATH):
             #         for filename in files:
@@ -110,8 +111,6 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
             #             size = os.path.getsize(filepath)
             #             print(f'Epoch: {i}', os.path.join(root, filename), size/1024)
             #     print(f'Epoch: {i}', '#'*20)
-
-            # monitor_system(interval=1, duration=1)
 
             # Load weather data at time t as the input; load weather data at time t+336 as the output
             # Note the data need to be randomly shuffled
