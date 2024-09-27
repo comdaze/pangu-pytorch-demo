@@ -31,7 +31,6 @@ def get_last_day_of_month(date_string):
     # 返回天数作为字符串
     return f'{last_day.day:02d}'
 
-
 @retry(
     stop=stop_after_attempt(5),  # 最多重试5次
     wait=wait_exponential(multiplier=1, min=4, max=60),  # 指数退避，最小4秒，最大60秒
@@ -48,16 +47,12 @@ def open_s3_dataset(path):
     try:
         # 从S3下载文件到临时位置
         s3.get(path, temp_path)
-        
         # 使用xarray打开本地文件
         ds = xarray.open_dataset(temp_path)
-        
         return ds
-    
     except (NoCredentialsError, ClientError) as e:
-        print(f"Error accessing S3: {str(e)}. Retrying...")
+        print(f"Error accessing S3: {str(e)}. Retrying...", path)
         raise  # 重新抛出异常，触发重试
-    
     finally:
         # 确保临时文件被删除
         if os.path.exists(temp_path):
@@ -189,7 +184,7 @@ with mp.Pool(num_processes) as pool:
     list(tqdm(pool.imap(process_month, select_months), total=len(select_months)))
 
 # 设置进程数，可以根据你的CPU核心数进行调整
-num_processes = 180  # mp.cpu_count()  # 使用所有可用的CPU核心
+num_processes = 90  # mp.cpu_count()  # 使用所有可用的CPU核心
 
 # 使用进程池并行处理
 with mp.Pool(num_processes) as pool:
