@@ -55,7 +55,9 @@ if __name__ == "__main__":
         init_dist(args.launcher, backend='nccl')
     rank, world_size = get_dist_info()
     print("The rank and world size is", rank, world_size)
-    local_rank = rank % world_size
+    gpu_count = torch.cuda.device_count()
+    print(f"Number of GPUs: {gpu_count}")
+    local_rank = rank % gpu_count
     print('local_rank:', local_rank)
     device = torch.device('cuda:' + str(local_rank))
     print(f"Predicting on {device}")
