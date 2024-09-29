@@ -102,8 +102,8 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
         # for id, train_data in enumerate(train_loader):
         for train_data in tqdm(train_loader, desc=f'Training epoch {i} rank {rank}'):
             
-            if rank == 0:
-                monitor_system(interval=1, duration=1)
+            # if rank == 0:
+            #     monitor_system(interval=1, duration=1)
             #     print(f'Epoch: {i}', '*'*20)
             #     for root, dirs, files in os.walk(cfg.PG_INPUT_PATH):
             #         for filename in files:
