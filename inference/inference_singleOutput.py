@@ -36,17 +36,13 @@ options = ort.SessionOptions()
 options.enable_cpu_mem_arena = False
 options.enable_mem_pattern = False
 options.enable_mem_reuse = False
-
 # Increase the number for faster inference and more memory consumption
 options.intra_op_num_threads = cfg.GLOBAL.NUM_THREADS
 
 # Set the behavier of cuda provider
 cuda_provider_options = {'arena_extend_strategy': 'kSameAsRequested', }
 
-ort_session_24 = ort.InferenceSession(cfg.PG.BENCHMARK.PRETRAIN_24, sess_options=options, providers=[('CUDAExecutionProvider', cuda_provider_options)])
-# ort_session_6 = ort.InferenceSession(cfg.PG.BENCHMARK.PRETRAIN_6, sess_options=options, providers=[('CUDAExecutionProvider', cuda_provider_options)])
-# ort_session_3 = ort.InferenceSession(cfg.PG.BENCHMARK.PRETRAIN_3, sess_options=options, providers=[('CUDAExecutionProvider', cuda_provider_options)])
-# ort_session_1 = ort.InferenceSession(cfg.PG.BENCHMARK.PRETRAIN_1, sess_options=options, providers=[('CUDAExecutionProvider', cuda_provider_options)])
+providers = [('CUDAExecutionProvider', cuda_provider_options)]
 
 # A test for a single input frame
 # desiered output: future 14 days forecast
@@ -55,7 +51,15 @@ h = cfg.PG.HORIZON
 output_data_dir = os.path.join(output_data_dir, str(h))
 utils.mkdirs(output_data_dir)
 
-num = 0
+if h == 24:
+    ort_session = ort.InferenceSession(cfg.PG.BENCHMARK.PRETRAIN_24, sess_options=options, providers=providers)
+elif h == 6:
+    ort_session = ort.InferenceSession(cfg.PG.BENCHMARK.PRETRAIN_6, sess_options=options, providers=providers)
+elif h == 3:
+    ort_session = ort.InferenceSession(cfg.PG.BENCHMARK.PRETRAIN_3, sess_options=options, providers=providers)
+elif h == 1:
+    ort_session = ort.InferenceSession(cfg.PG.BENCHMARK.PRETRAIN_1, sess_options=options, providers=providers)
+
 # Load mean and std of the weather data
 # weather_surface_mean, weather_surface_std = utils.LoadStatic()
 
@@ -73,10 +77,7 @@ test_dataset = utils_data.PTDataset(pt_path=PATH,
 dataset_length = len(test_dataset)
 
 test_dataloader = data.DataLoader(dataset=test_dataset, batch_size=cfg.PG.TEST.BATCH_SIZE,
-                                  drop_last=True, shuffle=False, num_workers=8, pin_memory=True)  # default: num_workers=0
-
-# Loss function
-criterion = nn.L1Loss(reduction='none')
+                                  drop_last=True, shuffle=False, num_workers=8, pin_memory=False)  # default: num_workers=0
 
 # Dic to save rmses
 rmse_upper_z, rmse_upper_q, rmse_upper_t, rmse_upper_u, rmse_upper_v = dict(
@@ -99,7 +100,7 @@ for data in tqdm(test_dataloader):
     input_24, input_surface_24 = input.numpy().astype(np.float32).squeeze(), input_surface.numpy(
     ).astype(np.float32).squeeze()  # input torch.Size([1, 5, 13, 721, 1440])
 
-    spaces = h // 24
+    spaces = h // 24  # TODO: may change
     # start time
     input_time = datetime.strptime(periods[0][batch_id], '%Y%m%d%H')
 
@@ -109,7 +110,7 @@ for data in tqdm(test_dataloader):
         print("predicting on....", current_time)
 
         # Call the model pretrained for 24 hours forecast
-        output, output_surface = ort_session_24.run(
+        output, output_surface = ort_session.run(
             None, {'input': input_24, 'input_surface': input_surface_24})
 
         # Stored the output for next round forecast
@@ -124,27 +125,34 @@ for data in tqdm(test_dataloader):
 
     target, target_surface = target.squeeze(), target_surface.squeeze()
     output, output_surface = output.squeeze(), output_surface.squeeze()
+    
     # mslp, u,v,t2m 3: visualize t2m
     png_path = os.path.join(output_data_dir, "png")
     if not os.path.exists(png_path):
         os.mkdir(png_path)
-    """
-      utils.visuailze(output,
-                        target, 
-                        input.numpy().astype(np.float32).squeeze(),
-                        var='t',
-                        z=2,
-                        step=target_time, 
-                        path=png_path)
+        
+    utils.visuailze(output,
+                    target, 
+                    input.numpy().astype(np.float32).squeeze(),
+                    var='t',
+                    z=2,
+                    step=target_time, 
+                    path=png_path)
 
-      utils.visuailze_surface(output_surface,
-                              target_surface, 
-                              input_surface.numpy().astype(np.float32).squeeze(),
-                              var='u10',
-                              step=target_time, 
-                              path=png_path)
+    utils.visuailze_surface(output_surface,
+                            target_surface, 
+                            input_surface.numpy().astype(np.float32).squeeze(),
+                            var='u10',
+                            step=target_time, 
+                            path=png_path)
+    
+    utils.visuailze_surface(output_surface,
+                            target_surface, 
+                            input_surface.numpy().astype(np.float32).squeeze(),
+                            var='v10',
+                            step=target_time, 
+                            path=png_path)
 
-    """
     # RMSE for each variabl
 
     rmse_upper_z[target_time] = score.weighted_rmse_torch_channels(
