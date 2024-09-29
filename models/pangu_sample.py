@@ -317,6 +317,12 @@ def test(test_loader, model, device, res_path):
                                 var='u10',
                                 step=target_time,
                                 path=png_path)
+        utils.visuailze_surface(output_surface_test.detach().cpu().squeeze(),
+                                target_surface_test.detach().cpu().squeeze(),
+                                input_surface_test.detach().cpu().squeeze(),
+                                var='v10',
+                                step=target_time,
+                                path=png_path)
 
         # Compute test scores
         # rmse
