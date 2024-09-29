@@ -9,7 +9,7 @@ __C.GLOBAL = edict()
 __C.GLOBAL.DEVICE = torch.device(
     "cuda" if torch.cuda.is_available() else "cpu")
 __C.GLOBAL.BATCH_SZIE = 1
-for dirs in ['/home/ec2-user/pangu-pytorch', '/opt/ml']:
+for dirs in ['/opt/dlami/nvme', '/opt/ml']:
     if os.path.exists(dirs):
         __C.GLOBAL.PATH = dirs
 assert __C.GLOBAL.PATH is not None
@@ -41,8 +41,8 @@ __C.PG.TRAIN = edict()
 # 时间步长（例如，每步预测 24 小时）, 可选：1, 3, 6, 24。这里名称定义可能会有歧义，按理说HORIZON是指预测范围，也就是几个“时间步长”，但是本项目中就当“时间步长”来用了
 __C.PG.HORIZON = 24
 
-__C.PG.TRAIN.EPOCHS = 2  # default: 100
-__C.PG.TRAIN.LR = 5e-6  # 5e-4
+__C.PG.TRAIN.EPOCHS = 30  # default: 100
+__C.PG.TRAIN.LR = 2e-5  # 5e-4, 5e-6
 __C.PG.TRAIN.WEIGHT_DECAY = 3e-6
 __C.PG.TRAIN.START_TIME = '20180101'
 __C.PG.TRAIN.END_TIME = '20230101'
