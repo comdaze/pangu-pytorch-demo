@@ -43,6 +43,8 @@ if __name__ == "__main__":
     # os.environ['CUDA_VISIBLE_DEVICES'] = gpu_list
     # device = torch.device('cuda' if opt['gpu_ids'] else 'cpu')
 
+    torch.set_num_threads(cfg.GLOBAL.NUM_THREADS)
+
     # ----------------------------------------
     # distributed settings
     # ----------------------------------------
@@ -156,7 +158,6 @@ if __name__ == "__main__":
     # weather_statistics = utils.LoadStatic_pretrain()
     # if rank == 0:
     #     print("weather statistics are loaded!")
-    # torch.set_num_threads(cfg.GLOBAL.NUM_THREADS)
 
     lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(
         optimizer, milestones=[25, 50], gamma=0.5)

@@ -306,7 +306,7 @@ class PTDataset(data.Dataset):
         # self.length = len(self.keys) - horizon // 12 - 1  # TODO Why horizon // 12 ?
         self.length = len(self.keys) - horizon // int(freq[:-1]) - 1
 
-        print('self.keys:', len(self.keys), self.keys)
+        print('self.keys:', len(self.keys), self.keys[:10], self.keys[-10:])
         print('self.length:', self.length)
 
         random.seed(seed)

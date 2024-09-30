@@ -390,9 +390,9 @@ class EarthAttention3D(nn.Module):
 
         # Change the order of the index to calculate the index in total
         coords_1 = torch.stack(torch.meshgrid(
-            [coords_zi, coords_hi, coords_w]))
+            [coords_zi, coords_hi, coords_w], indexing='ij'))
         coords_2 = torch.stack(torch.meshgrid(
-            [coords_zj, coords_hj, coords_w]))
+            [coords_zj, coords_hj, coords_w], indexing='ij'))
         coords_flatten_1 = torch.flatten(coords_1, start_dim=1)
         coords_flatten_2 = torch.flatten(coords_2, start_dim=1)
         coords = coords_flatten_1[:, :, None] - coords_flatten_2[:, None, :]
