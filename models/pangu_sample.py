@@ -82,6 +82,7 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
 
     # training epoch
     epochs = cfg.PG.TRAIN.EPOCHS
+    accumulation_steps = cfg.PG.TRAIN.ACCUMULATION_STEPS
 
     loss_list = []
     best_loss = float('inf')
@@ -96,12 +97,12 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
 
     # Train a single Pangu-Weather model
     for i in range(start_epoch, epochs + 1):
+        model.train()
         epoch_loss = 0.0
         epoch_start = time.time()
-
+        
         # for id, train_data in enumerate(train_loader):
-        for train_data in tqdm(train_loader, desc=f'Training epoch {i} rank {rank}'):
-            
+        for iter_num, train_data in enumerate(tqdm(train_loader, desc=f'Training epoch {i} rank {rank}')):
             # if rank == 0:
             #     monitor_system(interval=1, duration=1)
             #     print(f'Epoch: {i}', '*'*20)
@@ -111,6 +112,8 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
             #             size = os.path.getsize(filepath)
             #             print(f'Epoch: {i}', os.path.join(root, filename), size/1024)
             #     print(f'Epoch: {i}', '#'*20)
+            if (iter_num + 1) % accumulation_steps == 0:
+                optimizer.zero_grad()
 
             # Load weather data at time t as the input; load weather data at time t+336 as the output
             # Note the data need to be randomly shuffled
@@ -119,10 +122,8 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
             input, input_surface, target, target_surface = input.to(device), input_surface.to(device), target.to(
                 device), target_surface.to(device)
 
-            optimizer.zero_grad()
             # with torch.autocast(device_type='cuda', dtype=torch.float16):
             # /with torch.cuda.amp.autocast():
-            model.train()
 
             # Note the input and target need to be normalized (done within the function)
             # Call the model and get the output
@@ -151,9 +152,11 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
             # Update model parameters with Adam optimizer
             # scaler.step(optimizer)
             # scaler.update()
-            optimizer.step()
+            if (iter_num + 1) % accumulation_steps == 0:
+                optimizer.step()
+                
             epoch_loss += loss.item()
-
+                
         epoch_loss /= len(train_loader)
         epoch_end = time.time()
         logger.info("Epoch {} Rank {}: loss={:.3f}, time={:.3f}".format(i, rank, epoch_loss, epoch_end-epoch_start))
@@ -164,6 +167,10 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
         #
         # for name, param in model.named_parameters():
         #   writer.add_histogram(name, param.data, i)
+        
+        # Clean up memory
+        del input, input_surface, target, target_surface, output, output_surface
+        torch.cuda.empty_cache()
 
         if rank == 0:
             model_save_path = os.path.join(res_path, 'models')
@@ -256,12 +263,16 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
                         epochs_since_last_improvement = 0
                     else:
                         epochs_since_last_improvement += 1
-                        if epochs_since_last_improvement >= 5:
+                        if epochs_since_last_improvement >= 5:  # TODO may move to config.py
                             logger.info(
                                 f"No improvement in validation loss for {epochs_since_last_improvement} epochs, terminating training.")
                             break
+                        
+                    del input_val, input_surface_val, target_val, target_surface_val, output_val, output_surface_val
+                    torch.cuda.empty_cache()
 
-        # print("lr",lr_scheduler.get_last_lr()[0])
+        if rank == 0:
+            print("lr:", lr_scheduler.get_last_lr()[0])
     return best_model
 
 
