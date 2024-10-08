@@ -147,6 +147,7 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
 
             # Call the backward algorithm and calculate the gratitude of parameters
             # scaler.scale(loss).backward()
+            loss = loss / accumulation_steps  # 将损失除以累积步数
             loss.backward()
 
             # Update model parameters with Adam optimizer
