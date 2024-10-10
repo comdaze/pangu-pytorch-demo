@@ -38,6 +38,11 @@ def get_last_day_of_month(date_string):
     reraise=True  # 如果所有重试都失败，重新抛出最后一个异常
 )
 def open_s3_dataset(path):
+    local_path = path.replace(f's3://{s3_bucket}/', '')
+    if os.path.exists(local_path):
+        ds = xarray.open_dataset(local_path)
+        return ds
+    
     s3 = s3fs.S3FileSystem(anon=False)  # 使用 AWS 凭证
     
     # 创建临时文件
@@ -97,7 +102,7 @@ def process_month(select_month):
                 'msl', 'u10', 'v10', 't2m']].to_array().values
             # np.save(f'surface/surface_{select_hour}.npy', surface_np)
             surface_tensor = torch.from_numpy(surface_np)
-            # torch.save(surface_tensor, f'surface/surface_{select_hour}.pt')
+            torch.save(surface_tensor, f'surface/surface_{select_hour}.pt')
             
             # 将结果保存到S3
             buffer = io.BytesIO()
@@ -147,7 +152,7 @@ def process_date(select_date):
         upper_np = select_upper_ds[['z', 'q', 't', 'u', 'v']].to_array().values
         # np.save(f'upper/upper_{select_hour}.npy', upper_np)
         upper_tensor = torch.from_numpy(upper_np)
-        # torch.save(upper_tensor, f'upper/upper_{select_hour}.pt')
+        torch.save(upper_tensor, f'upper/upper_{select_hour}.pt')
         
         # 将结果保存到S3
         buffer = io.BytesIO()
@@ -162,7 +167,7 @@ s3_prefix = "nsf-ncar-era5"
 
 pressure_levels = [1000, 925, 850, 700, 600,
                    500, 400, 300, 250, 200, 150, 100, 50]
-startDate = '20180101'
+startDate = '20150101'
 endDate = '20240531'
 select_dates = list(pd.date_range(start=startDate, end=endDate, freq='1D'))
 select_dates = [date.strftime('%Y%m%d') for date in select_dates]
@@ -177,14 +182,14 @@ os.system('mkdir -p surface')
 os.system('mkdir -p upper')
 
 # 设置进程数，可以根据你的CPU核心数进行调整
-num_processes = 77  # mp.cpu_count()  # 使用所有可用的CPU核心
+num_processes = 60  # mp.cpu_count()  # 使用所有可用的CPU核心
 
 # 使用进程池并行处理
 with mp.Pool(num_processes) as pool:
     list(tqdm(pool.imap(process_month, select_months), total=len(select_months)))
 
 # 设置进程数，可以根据你的CPU核心数进行调整
-num_processes = 90  # mp.cpu_count()  # 使用所有可用的CPU核心
+num_processes = 60  # mp.cpu_count()  # 使用所有可用的CPU核心
 
 # 使用进程池并行处理
 with mp.Pool(num_processes) as pool:
