@@ -163,11 +163,14 @@ if __name__ == "__main__":
     start_epoch = 1
     
     if args.load_pretrained:
-        cpk = torch.load(os.path.join(output_path, "models/train_30.pth"))
+        cpk = torch.load(os.path.join(output_path, "models/train_70.pth"), weights_only=True)
+        cpk['model'] = {k.replace("module.", ""): v for k, v in cpk['model'].items()}
         model.load_state_dict(cpk['model'])
         optimizer.load_state_dict(cpk['optimizer'])
         lr_scheduler.load_state_dict(cpk['lr_scheduler'])
-        start_epoch = cpk["epoch"]
+        start_epoch = cpk["epoch"]+1
+        del cpk
+        torch.cuda.empty_cache()
     
     model = DDP(model)  # Use DistributedDataParallel
 

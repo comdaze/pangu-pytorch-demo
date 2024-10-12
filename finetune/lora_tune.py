@@ -167,16 +167,25 @@ if __name__ == "__main__":
     peft_model = get_peft_model(model, config)
     optimizer = torch.optim.Adam(peft_model.parameters(
     ), lr=cfg.PG.TRAIN.LR, weight_decay=cfg.PG.TRAIN.WEIGHT_DECAY)
+    
+    if rank == 0:
+        msg = '\n'
+        msg += utils.torch_summarize(peft_model, show_weights=False)
+        logger.info(msg)
+    
     lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(
         optimizer, milestones=[25, 50], gamma=0.5)
     start_epoch = 1
     
     if args.load_pretrained:
         cpk = torch.load(os.path.join(output_path, "models/train_30.pth"))
+        cpk['model'] = {k.replace("module.", ""): v for k, v in cpk['model'].items()}
         peft_model.load_state_dict(cpk['model'])
         optimizer.load_state_dict(cpk['optimizer'])
         lr_scheduler.load_state_dict(cpk['lr_scheduler'])
-        start_epoch = cpk["epoch"]
+        start_epoch = cpk["epoch"]+1
+        del cpk
+        torch.cuda.empty_cache()
 
     peft_model = DDP(peft_model)  # Use DistributedDataParallel
     
