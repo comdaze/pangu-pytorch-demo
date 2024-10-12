@@ -36,6 +36,7 @@ if __name__ == "__main__":
     parser.add_argument('--launcher', default='pytorch', help='job launcher')
     # parser.add_argument('--local-rank', type=int, default=0)
     parser.add_argument('--dist', default=True)
+    
     args = parser.parse_args()
     starts = time.time()
 
@@ -47,7 +48,8 @@ if __name__ == "__main__":
     # os.environ['CUDA_VISIBLE_DEVICES'] = gpu_list
     # device = torch.device('cuda' if opt['gpu_ids'] else 'cpu')
 
-    # print(f"Predicting on {device}")
+    torch.set_num_threads(cfg.GLOBAL.NUM_THREADS)
+
     # ----------------------------------------
     # distributed settings
     # ----------------------------------------
@@ -86,17 +88,18 @@ if __name__ == "__main__":
                                          startDate=cfg.PG.TRAIN.START_TIME,
                                          endDate=cfg.PG.TRAIN.END_TIME,
                                          freq=cfg.PG.TRAIN.FREQUENCY,
-                                         horizon=cfg.PG.HORIZON)
+                                         horizon=cfg.PG.HORIZON,
+                                         device='cpu')  # device
     if args.dist:
         train_sampler = DistributedSampler(
             train_dataset, shuffle=True, drop_last=True)
 
-        train_dataloader = data.DataLoader(dataset=train_dataset, batch_size=cfg.PG.TRAIN.BATCH_SIZE//world_size,  # replace len(opt['gpu_ids']) with world_size
-                                           num_workers=8, pin_memory=False, sampler=train_sampler)  # default: num_workers=0
+        train_dataloader = data.DataLoader(dataset=train_dataset, batch_size=1,  # replace len(opt['gpu_ids']) with world_size  # cfg.PG.TRAIN.BATCH_SIZE//world_size
+                                           num_workers=8, pin_memory=True, sampler=train_sampler)  # default: num_workers=0, pin_memory=False
     else:
         train_dataloader = data.DataLoader(dataset=train_dataset,
                                            batch_size=cfg.PG.TRAIN.BATCH_SIZE,
-                                           drop_last=True, shuffle=True, num_workers=8, pin_memory=False)  # default: num_workers=0
+                                           drop_last=True, shuffle=True, num_workers=8, pin_memory=True)  # default: num_workers=0
 
     dataset_length = len(train_dataloader)
     if rank == 0:
@@ -110,10 +113,11 @@ if __name__ == "__main__":
                                        startDate=cfg.PG.VAL.START_TIME,
                                        endDate=cfg.PG.VAL.END_TIME,
                                        freq=cfg.PG.VAL.FREQUENCY,
-                                       horizon=cfg.PG.HORIZON)
+                                       horizon=cfg.PG.HORIZON,
+                                       device='cpu')  # device
 
     val_dataloader = data.DataLoader(dataset=val_dataset, batch_size=cfg.PG.VAL.BATCH_SIZE,
-                                     drop_last=True, shuffle=False, num_workers=8, pin_memory=False)  # default: num_workers=0
+                                     drop_last=True, shuffle=False, num_workers=8, pin_memory=True)  # default: num_workers=0, pin_memory=False
 
     # test_dataset = utils_data.NetCDFDataset(nc_path=PATH,
     test_dataset = utils_data.PTDataset(pt_path=PATH,
@@ -123,10 +127,11 @@ if __name__ == "__main__":
                                         startDate=cfg.PG.TEST.START_TIME,
                                         endDate=cfg.PG.TEST.END_TIME,
                                         freq=cfg.PG.TEST.FREQUENCY,
-                                        horizon=cfg.PG.HORIZON)
+                                        horizon=cfg.PG.HORIZON,
+                                        device='cpu')  # device
 
     test_dataloader = data.DataLoader(dataset=test_dataset, batch_size=cfg.PG.TEST.BATCH_SIZE,
-                                      drop_last=True, shuffle=False, num_workers=8, pin_memory=False)  # default: num_workers=0
+                                      drop_last=True, shuffle=False, num_workers=8, pin_memory=True)  # default: num_workers=0, pin_memory=False
 
     model = PanguModel(device=device).to(device)
     
@@ -165,6 +170,7 @@ if __name__ == "__main__":
     lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(
         optimizer, milestones=[25, 50], gamma=0.5)
     start_epoch = 1
+    
     if args.load_pretrained:
         cpk = torch.load(os.path.join(output_path, "models/train_30.pth"))
         peft_model.load_state_dict(cpk['model'])

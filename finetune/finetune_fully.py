@@ -27,6 +27,7 @@ Fully finetune the pretrained model
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--type_net', type=str, default="finetune_fully")
+    parser.add_argument('--load_pretrained', type=bool, default=False)
     parser.add_argument('--load_my_best', type=bool, default=True)
     parser.add_argument('--launcher', default='pytorch', help='job launcher')
     # parser.add_argument('--local-rank', type=int, default=0)
@@ -145,8 +146,6 @@ if __name__ == "__main__":
     for param in model.parameters():
         param.requires_grad = True
         
-    model = DDP(model)  # Use DistributedDataParallel
-
     optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters(
     )), lr=cfg.PG.TRAIN.LR, weight_decay=cfg.PG.TRAIN.WEIGHT_DECAY)
 
@@ -162,6 +161,15 @@ if __name__ == "__main__":
     lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(
         optimizer, milestones=[25, 50], gamma=0.5)
     start_epoch = 1
+    
+    if args.load_pretrained:
+        cpk = torch.load(os.path.join(output_path, "models/train_30.pth"))
+        model.load_state_dict(cpk['model'])
+        optimizer.load_state_dict(cpk['optimizer'])
+        lr_scheduler.load_state_dict(cpk['lr_scheduler'])
+        start_epoch = cpk["epoch"]
+    
+    model = DDP(model)  # Use DistributedDataParallel
 
     model = train(model, train_loader=train_dataloader,
                   val_loader=val_dataloader,
