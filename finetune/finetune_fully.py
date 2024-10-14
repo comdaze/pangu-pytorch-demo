@@ -31,6 +31,7 @@ if __name__ == "__main__":
     parser.add_argument('--load_my_best', type=bool, default=True)
     parser.add_argument('--launcher', default='pytorch', help='job launcher')
     # parser.add_argument('--local-rank', type=int, default=0)
+    parser.add_argument('--num_workers', type=int, default=8)
     parser.add_argument('--dist', default=True)
 
     args = parser.parse_args()
@@ -91,10 +92,10 @@ if __name__ == "__main__":
             train_dataset, shuffle=True, drop_last=True)
 
         train_dataloader = data.DataLoader(dataset=train_dataset, batch_size=1,  # replace len(opt['gpu_ids']) with world_size  # cfg.PG.TRAIN.BATCH_SIZE//world_size
-                                           num_workers=8, prefetch_factor=2, pin_memory=True, sampler=train_sampler)  # default: num_workers=0, pin_memory=False
+                                           num_workers=args.num_workers, prefetch_factor=2, pin_memory=True, sampler=train_sampler)  # default: num_workers=0, pin_memory=False
     else:
         train_dataloader = data.DataLoader(dataset=train_dataset, batch_size=cfg.PG.TRAIN.BATCH_SIZE,
-                                           drop_last=True, shuffle=True, num_workers=8, prefetch_factor=2, pin_memory=True)  # default: num_workers=0, pin_memory=False
+                                           drop_last=True, shuffle=True, num_workers=args.num_workers, prefetch_factor=2, pin_memory=True)  # default: num_workers=0, pin_memory=False
 
     dataset_length = len(train_dataloader)
     if rank == 0:
@@ -112,7 +113,7 @@ if __name__ == "__main__":
                                        device='cpu')  # device
 
     val_dataloader = data.DataLoader(dataset=val_dataset, batch_size=cfg.PG.VAL.BATCH_SIZE,
-                                     drop_last=True, shuffle=False, num_workers=8, prefetch_factor=2, pin_memory=True)  # default: num_workers=0, pin_memory=False
+                                     drop_last=True, shuffle=False, num_workers=args.num_workers, prefetch_factor=2, pin_memory=True)  # default: num_workers=0, pin_memory=False
 
     # test_dataset = utils_data.NetCDFDataset(nc_path=PATH,
     test_dataset = utils_data.PTDataset(pt_path=PATH,
@@ -126,7 +127,7 @@ if __name__ == "__main__":
                                         device='cpu')  # device
 
     test_dataloader = data.DataLoader(dataset=test_dataset, batch_size=cfg.PG.TEST.BATCH_SIZE,
-                                      drop_last=True, shuffle=False, num_workers=8, prefetch_factor=2, pin_memory=True)  # default: num_workers=0, pin_memory=False
+                                      drop_last=True, shuffle=False, num_workers=args.num_workers, prefetch_factor=2, pin_memory=True)  # default: num_workers=0, pin_memory=False
 
     model = PanguModel(device=device).to(device)
 
