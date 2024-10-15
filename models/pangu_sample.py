@@ -103,15 +103,16 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
         
         # for id, train_data in enumerate(train_loader):
         for iter_num, train_data in enumerate(tqdm(train_loader, desc=f'Training epoch {i} rank {rank}')):
-            # if rank == 0:
-            #     monitor_system(interval=1, duration=1)
-            #     print(f'Epoch: {i}', '*'*20)
-            #     for root, dirs, files in os.walk(cfg.PG_INPUT_PATH):
-            #         for filename in files:
-            #             filepath = os.path.join(root, filename)
-            #             size = os.path.getsize(filepath)
-            #             print(f'Epoch: {i}', os.path.join(root, filename), size/1024)
-            #     print(f'Epoch: {i}', '#'*20)
+            if rank == 0:
+                monitor_system(interval=1, duration=1)
+                # print(f'Epoch: {i}', '*'*20)
+                # for root, dirs, files in os.walk(cfg.PG_INPUT_PATH):
+                #     for filename in files:
+                #         filepath = os.path.join(root, filename)
+                #         size = os.path.getsize(filepath)
+                #         print(f'Epoch: {i}', os.path.join(root, filename), size/1024)
+                # print(f'Epoch: {i}', '#'*20)
+                
             if (iter_num + 1) % accumulation_steps == 0:
                 optimizer.zero_grad()
 
