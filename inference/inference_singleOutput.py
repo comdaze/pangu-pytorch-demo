@@ -88,6 +88,15 @@ acc_upper_z, acc_upper_q, acc_upper_t, acc_upper_u, acc_upper_v = dict(
 ), dict(), dict(), dict(), dict()
 acc_surface = dict()
 
+# Loss function
+criterion = nn.L1Loss(reduction='none')
+
+# Load constants and teleconnection indices
+aux_constants = utils_data.loadAllConstants(
+    device='cpu')  # 'weather_statistics','weather_statistics_last','constant_maps','tele_indices','variable_weights'
+upper_weights, surface_weights = aux_constants['variable_weights']
+
+test_loss = 0.0
 
 batch_id = 0
 # 每天00:00 12:00预报h小时候的天气（single frame output）
@@ -125,6 +134,22 @@ for data in tqdm(test_dataloader):
 
     target, target_surface = target.squeeze(), target_surface.squeeze()
     output, output_surface = output.squeeze(), output_surface.squeeze()
+    
+    # Noralize the gt to make the loss compariable
+    target_normalized, target_surface_normalized = utils_data.normData(target, target_surface, aux_constants['weather_statistics_last'])
+    output_normalized, output_surface_normalized = utils_data.normData(output, output_surface, aux_constants['weather_statistics_last'])
+
+    # We use the MAE loss to train the model
+    # Different weight can be applied for different fields if needed
+    loss_surface = criterion(output_surface_normalized, target_surface_normalized)
+    weighted_surface_loss = torch.mean(loss_surface * surface_weights)
+
+    loss_upper = criterion(output_normalized, target_normalized)
+    weighted_upper_loss = torch.mean(loss_upper * upper_weights)
+    # The weight of surface loss is 0.25
+    loss = weighted_upper_loss + weighted_surface_loss * 0.25
+    
+    test_loss += loss.item()
     
     # mslp, u,v,t2m 3: visualize t2m
     png_path = os.path.join(output_data_dir, "png")
@@ -197,3 +222,6 @@ utils.save_errorScores(csv_path, rmse_upper_z, rmse_upper_q, rmse_upper_t, rmse_
                        "rmse")
 utils.save_errorScores(csv_path, acc_upper_z, acc_upper_q,
                        acc_upper_t, acc_upper_u, acc_upper_v, acc_surface, "acc")
+
+test_loss /= len(test_dataloader)
+print('test_loss:', test_loss)
