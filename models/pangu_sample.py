@@ -112,7 +112,7 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
                 #         size = os.path.getsize(filepath)
                 #         print(f'Epoch: {i}', os.path.join(root, filename), size/1024)
                 # print(f'Epoch: {i}', '#'*20)
-                
+
             if (iter_num + 1) % accumulation_steps == 0:
                 optimizer.zero_grad()
 
@@ -290,7 +290,12 @@ def test(test_loader, model, device, res_path):
 
     # Load all statistics and constants
     aux_constants = utils_data.loadAllConstants(device=device)
-
+    
+    # Loss function
+    criterion = nn.L1Loss(reduction='none')
+    upper_weights, surface_weights = aux_constants['variable_weights']
+    test_loss = 0.0
+    
     batch_id = 0
     # for id, data in enumerate(test_loader, 0):
     for data in tqdm(test_loader, desc='Testing'):
@@ -306,6 +311,24 @@ def test(test_loader, model, device, res_path):
         output_test, output_surface_test = model(input_test, input_surface_test,
                                                  aux_constants['weather_statistics'],
                                                  aux_constants['constant_maps'], aux_constants['const_h'])
+        
+        # Noralize the gt to make the loss compariable
+        target_test_normalized, target_surface_test_normalized = utils_data.normData(target_test, target_surface_test,
+                                                            aux_constants['weather_statistics_last'])
+        
+        test_loss_surface = criterion(
+            output_surface_test, target_surface_test_normalized)
+        weighted_test_loss_surface = torch.mean(
+            test_loss_surface * surface_weights)
+
+        test_loss_upper = criterion(output_test, target_test_normalized)
+        weighted_test_loss_upper = torch.mean(
+            test_loss_upper * upper_weights)
+
+        loss = weighted_test_loss_upper + weighted_test_loss_surface * 0.25
+
+        test_loss += loss.item()
+        
         # Transfer to the output to the original data range
         output_test, output_surface_test = utils_data.normBackData(output_test, output_surface_test,
                                                                    aux_constants['weather_statistics_last'])
@@ -380,6 +403,7 @@ def test(test_loader, model, device, res_path):
 
         acc_surface[target_time] = score.weighted_acc_torch_channels(output_surface_test_anomaly,
                                                                      target_surface_test_anomaly).detach().cpu().numpy()
+        
     # Save rmses to csv
     csv_path = os.path.join(res_path, "csv")
     utils.mkdirs(csv_path)
@@ -387,6 +411,9 @@ def test(test_loader, model, device, res_path):
                            "rmse")
     utils.save_errorScores(csv_path, acc_upper_z, acc_upper_q,
                            acc_upper_t, acc_upper_u, acc_upper_v, acc_surface, "acc")
+    
+    test_loss /= len(test_loader)
+    print('test_loss:', test_loss)
 
 
 if __name__ == "__main__":
