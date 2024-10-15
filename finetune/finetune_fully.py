@@ -175,19 +175,18 @@ if __name__ == "__main__":
     
     model = DDP(model)  # Use DistributedDataParallel
 
-    # model = train(model, train_loader=train_dataloader,
-    #               val_loader=val_dataloader,
-    #               optimizer=optimizer,
-    #               lr_scheduler=lr_scheduler,
-    #               res_path=output_path,
-    #               device=device,
-    #               writer=writer, logger=logger, start_epoch=start_epoch, rank=rank)
+    model = train(model, train_loader=train_dataloader,
+                  val_loader=val_dataloader,
+                  optimizer=optimizer,
+                  lr_scheduler=lr_scheduler,
+                  res_path=output_path,
+                  device=device,
+                  writer=writer, logger=logger, start_epoch=start_epoch, rank=rank)
 
     if rank == 0:
-        # if args.load_my_best:
-        #     best_model = torch.load(os.path.join(
-        #         output_path, "models/best_model.pth"), map_location=device)  # 'cuda:0'
-        best_model = model
+        if args.load_my_best:
+            best_model = torch.load(os.path.join(
+                output_path, "models/best_model.pth"), map_location=device)  # 'cuda:0'
 
         logger.info("Begin testing...")
 
