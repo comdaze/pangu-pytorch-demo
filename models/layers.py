@@ -255,7 +255,7 @@ class EarthSpecificBlock(nn.Module):
 
         # 1,30,4,31,2,6,12,192
         x_window = torch.permute(x_window, (0, 5, 1, 3, 2, 4, 6, 7))
-        x_window = x_window.reshape(x_window.shape[1], x_window.shape[2]*x_window.shape[3], x_window.shape[4],
+        x_window = x_window.reshape(x_window.shape[0] * x_window.shape[1], x_window.shape[2]*x_window.shape[3], x_window.shape[4],
                                     x_window.shape[5], x_window.shape[6], x_window.shape[7])  # nW*B, window_size*window_size,
         # x_window (30,124,2,6,12,192)
         x_window = x_window.contiguous().view(
@@ -425,6 +425,7 @@ class EarthAttention3D(nn.Module):
         # qkv torch.Size([3, 30, 124, 6, 144, 32])
         qkv = torch.permute(qkv, (3, 0, 1, 4, 2, 5))
         query, key, value = qkv[0], qkv[1], qkv[2]
+        # print(f"x.shape: {x.shape}, query.shape: {query.shape}, key.shape: {key.shape}, value.shape: {value.shape}")
 
         # Scale the attention
         query = query * self.scale
@@ -455,14 +456,18 @@ class EarthAttention3D(nn.Module):
         # Mask the attention between non-adjacent pixels, e.g., simply add -100 to the masked element.
         if mask is not None:
             nW = mask.shape[0]  # mask: 15x64x144x144
-            attention = attention.view(1, nW, self.type_of_windows, self.head_number, self.window_size[0]*self.window_size[1]*self.window_size[
+            # print(f"attention.shape: {attention.shape}, mask.shape: {mask.shape}")
+            B = attention.shape[0] // nW  # 计算批量大小
+            attention = attention.view(B, nW, self.type_of_windows, self.head_number, self.window_size[0]*self.window_size[1]*self.window_size[
                                        2], self.window_size[0]*self.window_size[1]*self.window_size[2]) + mask.unsqueeze(2).unsqueeze(0)  # 1x15x64x1x144x144
-            attention = attention.reshape(nW, self.type_of_windows, self.head_number,
+            attention = attention.reshape(B*nW, self.type_of_windows, self.head_number,
                                           self.window_size[0]*self.window_size[1]*self.window_size[2], self.window_size[0]*self.window_size[1]*self.window_size[2])
             attention = self.softmax(attention)
         else:
             attention = self.softmax(attention)
+        # print(f"before dropout attention.shape: {attention.shape}")
         attention = self.dropout(attention)
+        # print(f"after dropout attention.shape: {attention.shape}")
 
         # Calculated the tensor after spatial mixing.
         x = attention @ value  # ([30, 124, 6, 144, 32])

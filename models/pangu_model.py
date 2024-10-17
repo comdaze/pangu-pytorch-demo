@@ -10,6 +10,7 @@ import torch
 from torch import nn
 
 from models.layers import *
+from era5_data import utils_data
 
 # import torch.utils.checkpoint as checkpoint
 
@@ -60,15 +61,21 @@ class PanguModel(nn.Module):
     def forward(self, input, input_surface, statistics, maps, const_h):
         '''Backbone architecture'''
         # Embed the input fields into patches
-        # input:(B, N, Z, H, W) ([1, 5, 13, 721, 1440]) input_surface:(B,N,H,W)([1, 4, 721, 1440])
+        # input:(B, N, Z, H, W) ([1, 5, 13, 721, 1440]) input_surface:(B, N, H, W)([1, 4, 721, 1440])
         # x = checkpoint.checkpoint(self._input_layer, input, input_surface)
         # ([1, 521280, 192]) [B, spatial, C]
+        
+        # print(f"Input shape: {input.shape}")
+        # print(f"Input surface shape: {input_surface.shape}")
+        
         x = self._input_layer(input, input_surface, statistics, maps, const_h)
+        # print(f"After input layer shape: {x.shape}")
 
         # Encoder, composed of two layers
         # Layer 1, shape (8, 360, 181, C), C = 192 as in the original paper
 
         x = self.layers[0](x, 8, 181, 360)
+        # print(f"After first layer shape: {x.shape}")
 
         # Store the tensor for skip-connection
         skip = x
@@ -101,9 +108,19 @@ if __name__ == '__main__':
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     model = PanguModel(device=device).to(device)
+    
+    # Load all statistics and constants
+    aux_constants = utils_data.loadAllConstants(device=device)
 
     x_surface = torch.randn((1, 4, 721, 1440)).to(device)
     x_upper = torch.randn((1, 5, 13, 721, 1440)).to(device)
-    output, output_surface = model(x_upper, x_surface)
+    output, output_surface = model(x_upper, x_surface, aux_constants['weather_statistics'], aux_constants['constant_maps'], aux_constants['const_h'])
+    # print(output)
+    print(output.shape)
+    
+    # batch_size=2
+    x_surface = torch.randn((2, 4, 721, 1440)).to(device)
+    x_upper = torch.randn((2, 5, 13, 721, 1440)).to(device)
+    output, output_surface = model(x_upper, x_surface, aux_constants['weather_statistics'], aux_constants['constant_maps'], aux_constants['const_h'])
     # print(output)
     print(output.shape)
