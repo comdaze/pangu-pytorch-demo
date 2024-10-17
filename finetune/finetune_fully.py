@@ -91,7 +91,7 @@ if __name__ == "__main__":
         train_sampler = DistributedSampler(
             train_dataset, shuffle=True, drop_last=True)
 
-        train_dataloader = data.DataLoader(dataset=train_dataset, batch_size=1,  # replace len(opt['gpu_ids']) with world_size  # cfg.PG.TRAIN.BATCH_SIZE//world_size
+        train_dataloader = data.DataLoader(dataset=train_dataset, batch_size=cfg.PG.TRAIN.BATCH_SIZE//world_size,  # replace len(opt['gpu_ids']) with world_size
                                            num_workers=args.num_workers, prefetch_factor=2, pin_memory=True, sampler=train_sampler)  # default: num_workers=0, pin_memory=False
     else:
         train_dataloader = data.DataLoader(dataset=train_dataset, batch_size=cfg.PG.TRAIN.BATCH_SIZE,
@@ -164,7 +164,7 @@ if __name__ == "__main__":
     start_epoch = 1
     
     if args.load_pretrained:
-        cpk = torch.load(os.path.join(output_path, "models/train_70.pth"), weights_only=True)
+        cpk = torch.load(os.path.join(output_path, "models/train_30.pth"), weights_only=True)
         cpk['model'] = {k.replace("module.", ""): v for k, v in cpk['model'].items()}
         model.load_state_dict(cpk['model'])
         optimizer.load_state_dict(cpk['optimizer'])
