@@ -25,18 +25,30 @@ from era5_data.utils_dist import get_dist_info, init_dist
 from era5_data import utils, utils_data
 
 
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
 """
 Finetune the model using parameter-efficient finetune (lora)
 """
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--type_net', type=str, default="loratuner_normout")
-    parser.add_argument('--load_pretrained', type=bool, default=False)
-    parser.add_argument('--load_my_best', type=bool, default=True)
+    parser.add_argument('--load_pretrained', type=str2bool, default=False)
+    parser.add_argument('--load_my_best', type=str2bool, default=True)
     parser.add_argument('--launcher', default='pytorch', help='job launcher')
     # parser.add_argument('--local-rank', type=int, default=0)
     parser.add_argument('--num_workers', type=int, default=4)
-    parser.add_argument('--dist', default=True)
+    parser.add_argument('--dist', type=str2bool, default=True)
+    parser.add_argument('--only_test', type=str2bool, default=False)
+    parser.add_argument('--visualize', type=str2bool, default=False)
     
     args = parser.parse_args()
     starts = time.time()
@@ -190,13 +202,14 @@ if __name__ == "__main__":
 
     peft_model = DDP(peft_model)  # Use DistributedDataParallel
     
-    peft_model = train(peft_model, train_loader=train_dataloader,
-                       val_loader=val_dataloader,
-                       optimizer=optimizer,
-                       lr_scheduler=lr_scheduler,
-                       res_path=output_path,
-                       device=device,
-                       writer=writer, logger=logger, start_epoch=start_epoch, rank=rank)
+    if not args.only_test:
+        peft_model = train(peft_model, train_loader=train_dataloader,
+                        val_loader=val_dataloader,
+                        optimizer=optimizer,
+                        lr_scheduler=lr_scheduler,
+                        res_path=output_path,
+                        device=device,
+                        writer=writer, logger=logger, start_epoch=start_epoch, rank=rank, visualize=args.visualize)
 
     if rank == 0:
         for name, param in peft_model.base_model.named_parameters():
@@ -228,6 +241,7 @@ if __name__ == "__main__":
         test(test_loader=test_dataloader,
              model=peft_model,
              device=device,
-             res_path=output_path)
+             res_path=output_path,
+             visualize=args.visualize)
 
 # CUDA_VISIBLE_DEVICES=0,1,2,3 nohup python -m torch.distributed.launch --nproc_per_node=4 --master_port=1234 finetune_lastLayer_ddp.py --dist True
