@@ -21,20 +21,30 @@ from era5_data.utils_dist import get_dist_info, init_dist
 from era5_data import utils, utils_data
 
 
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+    
 """
 Fully finetune the pretrained model
 """
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--type_net', type=str, default="finetune_fully")
-    parser.add_argument('--load_pretrained', type=bool, default=False)
-    parser.add_argument('--load_my_best', type=bool, default=True)
+    parser.add_argument('--load_pretrained', type=str2bool, default=False)
+    parser.add_argument('--load_my_best', type=str2bool, default=True)
     parser.add_argument('--launcher', default='pytorch', help='job launcher')
     # parser.add_argument('--local-rank', type=int, default=0)
     parser.add_argument('--num_workers', type=int, default=4)
-    parser.add_argument('--dist', default=True)
-    parser.add_argument('--only_test', default=False)
-    parser.add_argument('--visualize', default=False)
+    parser.add_argument('--dist', type=str2bool, default=True)
+    parser.add_argument('--only_test', type=str2bool, default=False)
+    parser.add_argument('--visualize', type=str2bool, default=False)
 
     args = parser.parse_args()
     starts = time.time()
@@ -186,10 +196,14 @@ if __name__ == "__main__":
                     device=device,
                     writer=writer, logger=logger, start_epoch=start_epoch, rank=rank, visualize=args.visualize)
 
+    print('args:', args)
     if rank == 0:
         if args.load_my_best:
+            print('load_my_best')
             best_model = torch.load(os.path.join(
-                output_path, "models/best_model.pth"), map_location=device)  # 'cuda:0'
+                output_path, "models/best_model.pth"), weights_only=False, map_location=device)  # 'cuda:0'
+        else:
+            best_model = model
 
         logger.info("Begin testing...")
 
