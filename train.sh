@@ -6,3 +6,5 @@ torchrun --nproc_per_node 8 --nnodes 1 finetune/finetune_fully.py
 
 #  --num_workers 8
 #  --load_pretrained True
+#  --visualize True
+#  --only_test True
