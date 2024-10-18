@@ -33,6 +33,8 @@ if __name__ == "__main__":
     # parser.add_argument('--local-rank', type=int, default=0)
     parser.add_argument('--num_workers', type=int, default=4)
     parser.add_argument('--dist', default=True)
+    parser.add_argument('--only_test', default=False)
+    parser.add_argument('--visualize', default=False)
 
     args = parser.parse_args()
     starts = time.time()
@@ -175,13 +177,14 @@ if __name__ == "__main__":
     
     model = DDP(model)  # Use DistributedDataParallel
 
-    model = train(model, train_loader=train_dataloader,
-                  val_loader=val_dataloader,
-                  optimizer=optimizer,
-                  lr_scheduler=lr_scheduler,
-                  res_path=output_path,
-                  device=device,
-                  writer=writer, logger=logger, start_epoch=start_epoch, rank=rank)
+    if not args.only_test:
+        model = train(model, train_loader=train_dataloader,
+                    val_loader=val_dataloader,
+                    optimizer=optimizer,
+                    lr_scheduler=lr_scheduler,
+                    res_path=output_path,
+                    device=device,
+                    writer=writer, logger=logger, start_epoch=start_epoch, rank=rank, visualize=args.visualize)
 
     if rank == 0:
         if args.load_my_best:
@@ -193,6 +196,7 @@ if __name__ == "__main__":
         test(test_loader=test_dataloader,
              model=best_model,
              device=device,
-             res_path=output_path)
+             res_path=output_path,
+             visualize=args.visualize)
 
 # CUDA_VISIBLE_DEVICES=0,1,2,3 nohup python -m torch.distributed.launch --nproc_per_node=4 --master_port=1234 finetune_lastLayer_ddp.py --dist True

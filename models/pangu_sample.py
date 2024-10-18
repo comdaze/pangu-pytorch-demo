@@ -72,7 +72,7 @@ def monitor_system(interval=5, duration=60):
 
 
 def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, device, writer, logger, start_epoch,
-          rank=0):
+          rank=0, visualize=False):
     '''Training code'''
     # Prepare for the optimizer and scheduler
     # lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, 10, eta_min=0, last_epoch=- 1, verbose=False) #used in the paper
@@ -135,6 +135,8 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
             # Normalize gt to make loss compariable
             target, target_surface = utils_data.normData(
                 target, target_surface, aux_constants['weather_statistics_last'])
+            
+            # print(f"output.shape: {output.shape}, output_surface.shape: {output_surface.shape}")
 
             # We use the MAE loss to train the model
             # Different weight can be applied for different fields if needed
@@ -228,31 +230,33 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
                                        i)
                     logger.info(
                         "Validate at Epoch {} : {:.3f}".format(i, val_loss))
-                    # Visualize the training process
-                    png_path = os.path.join(res_path, "png_training")
-                    utils.mkdirs(png_path)
-                    # """
-                    # Normalize the data back to the original space for visualization
-                    output_val, output_surface_val = utils_data.normBackData(output_val, output_surface_val,
-                                                                             aux_constants['weather_statistics_last'])
-                    target_val, target_surface_val = utils_data.normBackData(target_val, target_surface_val,
-                                                                             aux_constants['weather_statistics_last'])
 
-                    utils.visuailze(output_val.detach().cpu().squeeze(),
-                                    target_val.detach().cpu().squeeze(),
-                                    # input_val_raw.squeeze(),
-                                    input_val.detach().cpu().squeeze(),
-                                    var='u',
-                                    z=12,
-                                    step=i,
-                                    path=png_path)
-                    utils.visuailze_surface(output_surface_val.detach().cpu().squeeze(),
-                                            target_surface_val.detach().cpu().squeeze(),
-                                            # input_surface_val_raw.squeeze(),
-                                            input_surface_val.detach().cpu().squeeze(),
-                                            var='msl',
-                                            step=i,
-                                            path=png_path)
+                    # Visualize the training process
+                    if visualize:
+                        png_path = os.path.join(res_path, "png_training")
+                        utils.mkdirs(png_path)
+                        
+                        # Normalize the data back to the original space for visualization
+                        output_val, output_surface_val = utils_data.normBackData(output_val, output_surface_val,
+                                                                                aux_constants['weather_statistics_last'])
+                        target_val, target_surface_val = utils_data.normBackData(target_val, target_surface_val,
+                                                                                aux_constants['weather_statistics_last'])
+                        
+                        utils.visuailze(output_val.detach().cpu().squeeze(),
+                                        target_val.detach().cpu().squeeze(),
+                                        # input_val_raw.squeeze(),
+                                        input_val.detach().cpu().squeeze(),
+                                        var='u',
+                                        z=12,
+                                        step=i,
+                                        path=png_path)
+                        utils.visuailze_surface(output_surface_val.detach().cpu().squeeze(),
+                                                target_surface_val.detach().cpu().squeeze(),
+                                                # input_surface_val_raw.squeeze(),
+                                                input_surface_val.detach().cpu().squeeze(),
+                                                var='msl',
+                                                step=i,
+                                                path=png_path)
                     # Early stopping
                     if val_loss < best_loss:
                         best_loss = val_loss
@@ -278,7 +282,7 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
     return best_model
 
 
-def test(test_loader, model, device, res_path):
+def test(test_loader, model, device, res_path, visualize=False):
     # set up empty dics for rmses and anormaly correlation coefficients
     rmse_upper_z, rmse_upper_q, rmse_upper_t, rmse_upper_u, rmse_upper_v = dict(
     ), dict(), dict(), dict(), dict()
@@ -336,29 +340,30 @@ def test(test_loader, model, device, res_path):
         target_time = periods_test[1][batch_id]
 
         # Visualize
-        png_path = os.path.join(res_path, "png")
-        utils.mkdirs(png_path)
+        if visualize:
+            png_path = os.path.join(res_path, "png")
+            utils.mkdirs(png_path)
 
-        utils.visuailze(output_test.detach().cpu().squeeze(),
-                        target_test.detach().cpu().squeeze(),
-                        input_test.detach().cpu().squeeze(),
-                        var='t',
-                        z=2,
-                        step=target_time,
-                        path=png_path)
-        # ['msl', 'u','v','t2m']
-        utils.visuailze_surface(output_surface_test.detach().cpu().squeeze(),
-                                target_surface_test.detach().cpu().squeeze(),
-                                input_surface_test.detach().cpu().squeeze(),
-                                var='u10',
-                                step=target_time,
-                                path=png_path)
-        utils.visuailze_surface(output_surface_test.detach().cpu().squeeze(),
-                                target_surface_test.detach().cpu().squeeze(),
-                                input_surface_test.detach().cpu().squeeze(),
-                                var='v10',
-                                step=target_time,
-                                path=png_path)
+            utils.visuailze(output_test.detach().cpu().squeeze(),
+                            target_test.detach().cpu().squeeze(),
+                            input_test.detach().cpu().squeeze(),
+                            var='t',
+                            z=2,
+                            step=target_time,
+                            path=png_path)
+            # ['msl', 'u','v','t2m']
+            utils.visuailze_surface(output_surface_test.detach().cpu().squeeze(),
+                                    target_surface_test.detach().cpu().squeeze(),
+                                    input_surface_test.detach().cpu().squeeze(),
+                                    var='u10',
+                                    step=target_time,
+                                    path=png_path)
+            utils.visuailze_surface(output_surface_test.detach().cpu().squeeze(),
+                                    target_surface_test.detach().cpu().squeeze(),
+                                    input_surface_test.detach().cpu().squeeze(),
+                                    var='v10',
+                                    step=target_time,
+                                    path=png_path)
 
         # Compute test scores
         # rmse
