@@ -19,8 +19,8 @@ SAVE_PATH="${SM_WORKING_DIR}/results"
 LOG_FILE="${SAVE_PATH}/log.txt"
 # DS_CONFIG="${WORKING_DIR}/deepspeed_config.json"
 
-EPOCHS=10
-BATCH_SIZE=1024
+# EPOCHS=10
+# BATCH_SIZE=1024
 #model_id="decapoda-research/llama-7b-hf"
 #model_id="pinkmanlove/llama-7b-hf"
 
