@@ -14,7 +14,7 @@ from torch.utils import data
 from torch.utils.data.distributed import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-from models.pangu_sample import test, train
+from models.pangu_sample import test, train, monitor_system
 from models.pangu_model import PanguModel
 from era5_data.config import cfg
 from era5_data.utils_dist import get_dist_info, init_dist
@@ -140,6 +140,8 @@ if __name__ == "__main__":
 
     test_dataloader = data.DataLoader(dataset=test_dataset, batch_size=cfg.PG.TEST.BATCH_SIZE,
                                       drop_last=True, shuffle=False, num_workers=args.num_workers, prefetch_factor=2, pin_memory=True)  # default: num_workers=0, pin_memory=False
+    
+    monitor_system(interval=1, duration=1)
 
     model = PanguModel(device=device).to(device)
 
