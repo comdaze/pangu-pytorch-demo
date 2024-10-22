@@ -142,6 +142,11 @@ if __name__ == "__main__":
                                       drop_last=True, shuffle=False, num_workers=args.num_workers, prefetch_factor=2, pin_memory=True)  # default: num_workers=0, pin_memory=False
     
     monitor_system(interval=1, duration=1)
+    for root, dirs, files in os.walk(cfg.PG_INPUT_PATH):
+        for filename in files:
+            filepath = os.path.join(root, filename)
+            size = os.path.getsize(filepath)
+            print(os.path.join(root, filename), size/1024)
 
     model = PanguModel(device=device).to(device)
 
