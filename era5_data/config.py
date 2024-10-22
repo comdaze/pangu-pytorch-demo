@@ -20,7 +20,7 @@ __C.GLOBAL.NUM_THREADS = 16
 # __C.ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 
 if __C.GLOBAL.PATH.startswith('/opt/ml'):
-    __C.PG_INPUT_PATH = os.path.join(__C.GLOBAL.PATH, 'input/data/training/')  # For FSx (/opt/ml/input/data/training: 1% used (348M/45T))
+    __C.PG_INPUT_PATH = os.path.join(__C.GLOBAL.PATH, 'input/data/training/ns1/')  # For FSx (/opt/ml/input/data/training: 1% used (348M/45T))
 else:
     __C.PG_INPUT_PATH = __C.GLOBAL.PATH
 assert __C.PG_INPUT_PATH is not None
