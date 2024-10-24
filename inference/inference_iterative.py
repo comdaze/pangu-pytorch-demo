@@ -147,7 +147,7 @@ def inference_25_hours(input_time, input, input_surface, save_dir):
     prediction_files = {}  # 存储文件路径而不是实际数据
 
     # 1. 使用24h模型预测第24小时
-    print('h=24')
+    # print('h=24')
     output_24, output_surface_24 = inference_step(ort_session_24, input, input_surface)
     prediction_time = input_time + timedelta(hours=24)
     save_path = save_prediction(output_24, output_surface_24, 24, prediction_time, save_dir)
@@ -158,7 +158,7 @@ def inference_25_hours(input_time, input, input_surface, save_dir):
 
     # 2. 使用6h模型预测30,36,42,48小时
     for h in [30, 36, 42, 48]:
-        print(f"h={h}")
+        # print(f"h={h}")
         # 找到最近的已知预测结果作为输入
         latest_h = max([x for x in prediction_files.keys() if x <= h - 6])
         new_input, new_input_surface = load_prediction(prediction_files[latest_h])
@@ -172,7 +172,7 @@ def inference_25_hours(input_time, input, input_surface, save_dir):
 
     # 3. 使用3h模型预测27,33,39,45小时
     for h in [27, 33, 39, 45]:
-        print(f"h={h}")
+        # print(f"h={h}")
         latest_h = max([x for x in prediction_files.keys() if x <= h - 3])
         new_input, new_input_surface = load_prediction(prediction_files[latest_h])
         output_3, output_surface_3 = inference_step(ort_session_3, new_input, new_input_surface)
@@ -186,7 +186,7 @@ def inference_25_hours(input_time, input, input_surface, save_dir):
     # 4. 使用1h模型填充剩余时间点
     remaining_hours = [h for h in range(24, 49) if h not in prediction_files]
     for h in remaining_hours:
-        print(f"h={h}")
+        # print(f"h={h}")
         latest_h = max([x for x in prediction_files.keys() if x <= h - 1])
         new_input, new_input_surface = load_prediction(prediction_files[latest_h])
         output_1, output_surface_1 = inference_step(ort_session_1, new_input, new_input_surface)
@@ -212,5 +212,5 @@ for data in tqdm(test_dataloader):
     
     prediction_files = inference_25_hours(input_time, input, input_surface, save_dir)
     
-    for k,v in prediction_files.items():
-      print(k, v)
+    # for k,v in prediction_files.items():
+    #   print(k, v)
