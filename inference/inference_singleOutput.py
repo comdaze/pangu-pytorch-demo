@@ -16,20 +16,16 @@ import torch
 from era5_data.config import cfg
 from era5_data import score
 from era5_data import utils, utils_data
-from models.pangu_model import PanguModel
-
 
 # The directory of your input and output data
-
 PATH = cfg.PG_INPUT_PATH
-
 output_data_dir = cfg.PG_OUT_PATH
 
-# Load pretrained model
-model_24 = onnx.load(cfg.PG.BENCHMARK.PRETRAIN_24)
-# model_6 = onnx.load(cfg.PG.BENCHMARK.PRETRAIN_6)
-# model_3 = onnx.load(cfg.PG.BENCHMARK.PRETRAIN_3)
-# model_1 = onnx.load(cfg.PG.BENCHMARK.PRETRAIN_1)
+# # Load pretrained model
+# model_24 = onnx.load(cfg.PG.BENCHMARK.PRETRAIN_24)
+# # model_6 = onnx.load(cfg.PG.BENCHMARK.PRETRAIN_6)
+# # model_3 = onnx.load(cfg.PG.BENCHMARK.PRETRAIN_3)
+# # model_1 = onnx.load(cfg.PG.BENCHMARK.PRETRAIN_1)
 
 # Set the behavier of onnxruntime
 options = ort.SessionOptions()
