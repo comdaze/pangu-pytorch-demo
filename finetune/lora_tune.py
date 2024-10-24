@@ -4,6 +4,10 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
 sys.path.append(parent_dir)
 
+import warnings
+# 忽略所有FutureWarning
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
 from tensorboardX import SummaryWriter
 import copy
 import logging
