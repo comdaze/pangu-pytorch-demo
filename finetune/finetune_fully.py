@@ -4,6 +4,10 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
 sys.path.append(parent_dir)
 
+import warnings
+# 忽略所有FutureWarning
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
 from tensorboardX import SummaryWriter
 import logging
 import time
@@ -176,7 +180,7 @@ if __name__ == "__main__":
     start_epoch = 1
     
     if args.load_pretrained:
-        cpk = torch.load(os.path.join(output_path, "models/train_30.pth"), weights_only=True)
+        cpk = torch.load(os.path.join(output_path, "models/train_50.pth"), weights_only=True)
         cpk['model'] = {k.replace("module.", ""): v for k, v in cpk['model'].items()}
         model.load_state_dict(cpk['model'])
         optimizer.load_state_dict(cpk['optimizer'])
@@ -196,8 +200,8 @@ if __name__ == "__main__":
                     device=device,
                     writer=writer, logger=logger, start_epoch=start_epoch, rank=rank, visualize=args.visualize)
 
-    print('args:', args)
     if rank == 0:
+        print('args:', args)
         if args.load_my_best:
             print('load_my_best')
             best_model = torch.load(os.path.join(
