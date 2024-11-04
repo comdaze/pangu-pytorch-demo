@@ -93,7 +93,7 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
     # Load constants and teleconnection indices
     aux_constants = utils_data.loadAllConstants(
         device=device)  # 'weather_statistics','weather_statistics_last','constant_maps','tele_indices','variable_weights'
-    upper_weights, surface_weights = aux_constants['variable_weights']
+    upper_weights, surface_weights, upper_loss_weight, surface_loss_weight = aux_constants['variable_weights']
 
     # Train a single Pangu-Weather model
     for i in range(start_epoch, epochs + 1):
@@ -146,7 +146,8 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
             loss_upper = criterion(output, target)
             weighted_upper_loss = torch.mean(loss_upper * upper_weights)
             # The weight of surface loss is 0.25
-            loss = weighted_upper_loss + weighted_surface_loss * 0.25
+            # loss = weighted_upper_loss + weighted_surface_loss * 0.25
+            loss = weighted_upper_loss * upper_loss_weight + weighted_surface_loss * surface_loss_weight  # change loss weight
 
             # Call the backward algorithm and calculate the gratitude of parameters
             # scaler.scale(loss).backward()
@@ -219,7 +220,8 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
                         weighted_val_loss_upper = torch.mean(
                             val_loss_upper * upper_weights)
 
-                        loss = weighted_val_loss_upper + weighted_val_loss_surface * 0.25
+                        # loss = weighted_val_loss_upper + weighted_val_loss_surface * 0.25
+                        loss = weighted_val_loss_upper * upper_loss_weight + weighted_val_loss_surface * surface_loss_weight  # change loss weight
 
                         val_loss += loss.item()
 
@@ -297,7 +299,7 @@ def test(test_loader, model, device, res_path, visualize=False):
     
     # Loss function
     criterion = nn.L1Loss(reduction='none')
-    upper_weights, surface_weights = aux_constants['variable_weights']
+    upper_weights, surface_weights, upper_loss_weight, surface_loss_weight = aux_constants['variable_weights']
     test_loss = 0.0
     
     batch_id = 0
@@ -329,7 +331,8 @@ def test(test_loader, model, device, res_path, visualize=False):
         weighted_test_loss_upper = torch.mean(
             test_loss_upper * upper_weights)
 
-        loss = weighted_test_loss_upper + weighted_test_loss_surface * 0.25
+        # loss = weighted_test_loss_upper + weighted_test_loss_surface * 0.25
+        loss = weighted_test_loss_upper * upper_loss_weight + weighted_test_loss_surface * surface_loss_weight  # change loss weight
 
         test_loss += loss.item()
         
