@@ -498,7 +498,9 @@ def loadVariableWeights(device="cpu"):
         0).unsqueeze(2).unsqueeze(3).unsqueeze(4)
     surface_weights = torch.FloatTensor(
         cfg.PG.TRAIN.SURFACE_WEIGHTS).unsqueeze(0).unsqueeze(2).unsqueeze(3)
-    return upper_weights.to(device), surface_weights.to(device)
+    upper_loss_weight = torch.tensor(cfg.PG.TRAIN.UPPER_LOSS_WEIGHT, dtype=torch.float32)
+    surface_loss_weight = torch.tensor(cfg.PG.TRAIN.SURFACE_LOSS_WEIGHT, dtype=torch.float32)
+    return upper_weights.to(device), surface_weights.to(device), upper_loss_weight.to(device), surface_loss_weight.to(device)
 
 
 def loadAllConstants(device):

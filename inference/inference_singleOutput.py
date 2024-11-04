@@ -90,7 +90,7 @@ criterion = nn.L1Loss(reduction='none')
 # Load constants and teleconnection indices
 aux_constants = utils_data.loadAllConstants(
     device='cpu')  # 'weather_statistics','weather_statistics_last','constant_maps','tele_indices','variable_weights'
-upper_weights, surface_weights = aux_constants['variable_weights']
+upper_weights, surface_weights, upper_loss_weight, surface_loss_weight = aux_constants['variable_weights']
 
 test_loss = 0.0
 
@@ -143,7 +143,8 @@ for data in tqdm(test_dataloader):
     loss_upper = criterion(output_normalized, target_normalized)
     weighted_upper_loss = torch.mean(loss_upper * upper_weights)
     # The weight of surface loss is 0.25
-    loss = weighted_upper_loss + weighted_surface_loss * 0.25
+    # loss = weighted_upper_loss + weighted_surface_loss * 0.25
+    loss = weighted_upper_loss * upper_loss_weight + weighted_surface_loss * surface_loss_weight  # change loss weight
     
     test_loss += loss.item()
     
