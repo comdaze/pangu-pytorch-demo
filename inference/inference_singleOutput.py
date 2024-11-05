@@ -151,7 +151,7 @@ for data in tqdm(test_dataloader):
         output_surface_wind_speed_normalized, target_surface_wind_speed_normalized, output_wind_speed_normalized, target_wind_speed_normalized = get_wind_speed(output_surface_normalized, target_surface_normalized, output_normalized, target_normalized)
         surface_wind_speed_loss = criterion(output_surface_wind_speed_normalized, target_surface_wind_speed_normalized)
         wind_speed_loss = criterion(output_wind_speed_normalized, target_wind_speed_normalized)
-        loss = surface_wind_speed_loss + wind_speed_loss
+        loss = torch.mean(surface_wind_speed_loss) + torch.mean(wind_speed_loss)
     else:
         # We use the MAE loss to train the model
         # Different weight can be applied for different fields if needed

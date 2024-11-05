@@ -163,7 +163,7 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
                 output_surface_wind_speed, target_surface_wind_speed, output_wind_speed, target_wind_speed = get_wind_speed(output_surface, target_surface, output, target)
                 surface_wind_speed_loss = criterion(output_surface_wind_speed, target_surface_wind_speed)
                 wind_speed_loss = criterion(output_wind_speed, target_wind_speed)
-                loss = surface_wind_speed_loss + wind_speed_loss
+                loss = torch.mean(surface_wind_speed_loss) + torch.mean(wind_speed_loss)
             else:
                 # We use the MAE loss to train the model
                 # Different weight can be applied for different fields if needed
@@ -360,7 +360,7 @@ def test(test_loader, model, device, res_path, visualize=False, only_use_wind_sp
             output_surface_wind_speed, target_surface_wind_speed, output_wind_speed, target_wind_speed = get_wind_speed(output_surface_test, target_surface_test, output_test, target_test)
             surface_wind_speed_loss = criterion(output_surface_wind_speed, target_surface_wind_speed)
             wind_speed_loss = criterion(output_wind_speed, target_wind_speed)
-            loss = surface_wind_speed_loss + wind_speed_loss
+            loss = torch.mean(surface_wind_speed_loss) + torch.mean(wind_speed_loss)
         else:
             test_loss_surface = criterion(
                 output_surface_test, target_surface_test_normalized)
