@@ -53,6 +53,7 @@ if __name__ == "__main__":
     parser.add_argument('--dist', type=str2bool, default=True)
     parser.add_argument('--only_test', type=str2bool, default=False)
     parser.add_argument('--visualize', type=str2bool, default=False)
+    parser.add_argument('--only_use_wind_speed_loss', type=str2bool, default=False)
     
     args = parser.parse_args()
     starts = time.time()
@@ -213,11 +214,17 @@ if __name__ == "__main__":
                         lr_scheduler=lr_scheduler,
                         res_path=output_path,
                         device=device,
-                        writer=writer, logger=logger, start_epoch=start_epoch, rank=rank, visualize=args.visualize)
+                        writer=writer, logger=logger, start_epoch=start_epoch, rank=rank, visualize=args.visualize, only_use_wind_speed_loss=args.only_use_wind_speed_loss)
 
     if rank == 0:
         print('args:', args)
-        for name, param in peft_model.base_model.named_parameters():
+        # if args.load_my_best:  # TODO how to load best model?
+        #     print('load_my_best')
+        #     best_model = torch.load(os.path.join(
+        #         output_path, "models/best_model.pth"), weights_only=False, map_location=device)  # 'cuda:0'
+        # else:
+        #     best_model = model
+        for name, param in peft_model.module.base_model.named_parameters():
             if "lora" not in name:
                 continue
 
@@ -225,7 +232,7 @@ if __name__ == "__main__":
                 f"New parameter {name:<13} | {param.numel():>5} parameters | updated")
 
         params_before = dict(module_copy.named_parameters())
-        for name, param in peft_model.base_model.named_parameters():
+        for name, param in peft_model.module.base_model.named_parameters():
             if "lora" in name:
                 continue
 
@@ -240,13 +247,14 @@ if __name__ == "__main__":
                     print(
                         f"Parameter {name_before:<13} | {param.numel():>7} parameters | updated")
 
-        output_path = os.path.join(output_path, "test")
-        utils.mkdirs(output_path)
+        # output_path = os.path.join(output_path, "test")
+        # utils.mkdirs(output_path)
 
         test(test_loader=test_dataloader,
              model=peft_model,
              device=device,
              res_path=output_path,
-             visualize=args.visualize)
+             visualize=args.visualize,
+             only_use_wind_speed_loss=args.only_use_wind_speed_loss)
 
 # CUDA_VISIBLE_DEVICES=0,1,2,3 nohup python -m torch.distributed.launch --nproc_per_node=4 --master_port=1234 finetune_lastLayer_ddp.py --dist True

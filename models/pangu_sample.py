@@ -70,9 +70,30 @@ def monitor_system(interval=5, duration=60):
 
         time.sleep(interval)
 
+def get_wind_speed(output_surface, target_surface, output, target):
+    # Wind Speed Loss
+    output_surface_U10 = output_surface[:, 2, :, :]  # [1, 721, 1440]
+    output_surface_V10 = output_surface[:, 3, :, :]  # [1, 721, 1440]
+    output_surface_wind_speed = torch.sqrt(output_surface_U10**2 + output_surface_V10**2)  # [1, 721, 1440]
+    
+    target_surface_U10 = target_surface[:, 2, :, :]  # [1, 721, 1440]
+    target_surface_V10 = target_surface[:, 3, :, :]  # [1, 721, 1440]
+    target_surface_wind_speed = torch.sqrt(target_surface_U10**2 + target_surface_V10**2)  # [1, 721, 1440]
+    
+    output_U10 = output[:, 3, :, :, :]  # [1, 1, 13, 721, 1440]
+    output_V10 = output[:, 4, :, :, :]  # [1, 1, 13, 721, 1440]
+    output_wind_speed = torch.sqrt(output_U10**2 + output_V10**2)  # [1, 1, 13, 721, 1440]
+    
+    target_U10 = target[:, 3, :, :, :]  # [1, 721, 1440]
+    target_V10 = target[:, 4, :, :, :]  # [1, 721, 1440]
+    target_wind_speed = torch.sqrt(target_U10**2 + target_V10**2)  # [1, 1, 13, 721, 1440]
+    
+    # print(output_surface_wind_speed.shape, target_surface_wind_speed.shape, output_wind_speed.shape, target_wind_speed.shape)
+    
+    return output_surface_wind_speed, target_surface_wind_speed, output_wind_speed, target_wind_speed
 
 def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, device, writer, logger, start_epoch,
-          rank=0, visualize=False):
+          rank=0, visualize=False, only_use_wind_speed_loss=False):
     '''Training code'''
     # Prepare for the optimizer and scheduler
     # lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, 10, eta_min=0, last_epoch=- 1, verbose=False) #used in the paper
@@ -130,7 +151,7 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
             # Call the model and get the output
             output, output_surface = model(input, input_surface, aux_constants['weather_statistics'],
                                            aux_constants['constant_maps'],
-                                           aux_constants['const_h'])  # (1,5,13,721,1440)
+                                           aux_constants['const_h'])  # (1,5,13,721,1440), (1, 4, 721, 1440)
 
             # Normalize gt to make loss compariable
             target, target_surface = utils_data.normData(
@@ -138,16 +159,22 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
             
             # print(f"output.shape: {output.shape}, output_surface.shape: {output_surface.shape}")
 
-            # We use the MAE loss to train the model
-            # Different weight can be applied for different fields if needed
-            loss_surface = criterion(output_surface, target_surface)
-            weighted_surface_loss = torch.mean(loss_surface * surface_weights)
+            if only_use_wind_speed_loss:
+                output_surface_wind_speed, target_surface_wind_speed, output_wind_speed, target_wind_speed = get_wind_speed(output_surface, target_surface, output, target)
+                surface_wind_speed_loss = criterion(output_surface_wind_speed, target_surface_wind_speed)
+                wind_speed_loss = criterion(output_wind_speed, target_wind_speed)
+                loss = surface_wind_speed_loss + wind_speed_loss
+            else:
+                # We use the MAE loss to train the model
+                # Different weight can be applied for different fields if needed
+                loss_surface = criterion(output_surface, target_surface)
+                weighted_surface_loss = torch.mean(loss_surface * surface_weights)
 
-            loss_upper = criterion(output, target)
-            weighted_upper_loss = torch.mean(loss_upper * upper_weights)
-            # The weight of surface loss is 0.25
-            # loss = weighted_upper_loss + weighted_surface_loss * 0.25
-            loss = weighted_upper_loss * upper_loss_weight + weighted_surface_loss * surface_loss_weight  # change loss weight
+                loss_upper = criterion(output, target)
+                weighted_upper_loss = torch.mean(loss_upper * upper_weights)
+                # The weight of surface loss is 0.25
+                # loss = weighted_upper_loss + weighted_surface_loss * 0.25
+                loss = weighted_upper_loss * upper_loss_weight + weighted_surface_loss * surface_loss_weight  # change loss weight
 
             # Call the backward algorithm and calculate the gratitude of parameters
             # scaler.scale(loss).backward()
@@ -211,17 +238,23 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
                         target_val, target_surface_val = utils_data.normData(target_val, target_surface_val,
                                                                              aux_constants['weather_statistics_last'])
 
-                        val_loss_surface = criterion(
-                            output_surface_val, target_surface_val)
-                        weighted_val_loss_surface = torch.mean(
-                            val_loss_surface * surface_weights)
+                        if only_use_wind_speed_loss:
+                            output_surface_wind_speed, target_surface_wind_speed, output_wind_speed, target_wind_speed = get_wind_speed(output_surface_val, target_surface_val, output_val, target_val)
+                            surface_wind_speed_loss = criterion(output_surface_wind_speed, target_surface_wind_speed)
+                            wind_speed_loss = criterion(output_wind_speed, target_wind_speed)
+                            loss = surface_wind_speed_loss + wind_speed_loss
+                        else:
+                            val_loss_surface = criterion(
+                                output_surface_val, target_surface_val)
+                            weighted_val_loss_surface = torch.mean(
+                                val_loss_surface * surface_weights)
 
-                        val_loss_upper = criterion(output_val, target_val)
-                        weighted_val_loss_upper = torch.mean(
-                            val_loss_upper * upper_weights)
+                            val_loss_upper = criterion(output_val, target_val)
+                            weighted_val_loss_upper = torch.mean(
+                                val_loss_upper * upper_weights)
 
-                        # loss = weighted_val_loss_upper + weighted_val_loss_surface * 0.25
-                        loss = weighted_val_loss_upper * upper_loss_weight + weighted_val_loss_surface * surface_loss_weight  # change loss weight
+                            # loss = weighted_val_loss_upper + weighted_val_loss_surface * 0.25
+                            loss = weighted_val_loss_upper * upper_loss_weight + weighted_val_loss_surface * surface_loss_weight  # change loss weight
 
                         val_loss += loss.item()
 
@@ -284,11 +317,12 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
     return best_model
 
 
-def test(test_loader, model, device, res_path, visualize=False):
+def test(test_loader, model, device, res_path, visualize=False, only_use_wind_speed_loss=False):
     # set up empty dics for rmses and anormaly correlation coefficients
-    rmse_upper_z, rmse_upper_q, rmse_upper_t, rmse_upper_u, rmse_upper_v = dict(
-    ), dict(), dict(), dict(), dict()
+    rmse_upper_z, rmse_upper_q, rmse_upper_t, rmse_upper_u, rmse_upper_v, rmse_upper_wind_speed = dict(
+    ), dict(), dict(), dict(), dict(), dict()
     rmse_surface = dict()
+    rmse_surface_wind_speed = dict()
 
     acc_upper_z, acc_upper_q, acc_upper_t, acc_upper_u, acc_upper_v = dict(
     ), dict(), dict(), dict(), dict()
@@ -322,17 +356,23 @@ def test(test_loader, model, device, res_path, visualize=False):
         target_test_normalized, target_surface_test_normalized = utils_data.normData(target_test, target_surface_test,
                                                             aux_constants['weather_statistics_last'])
         
-        test_loss_surface = criterion(
-            output_surface_test, target_surface_test_normalized)
-        weighted_test_loss_surface = torch.mean(
-            test_loss_surface * surface_weights)
+        if only_use_wind_speed_loss:
+            output_surface_wind_speed, target_surface_wind_speed, output_wind_speed, target_wind_speed = get_wind_speed(output_surface_test, target_surface_test, output_test, target_test)
+            surface_wind_speed_loss = criterion(output_surface_wind_speed, target_surface_wind_speed)
+            wind_speed_loss = criterion(output_wind_speed, target_wind_speed)
+            loss = surface_wind_speed_loss + wind_speed_loss
+        else:
+            test_loss_surface = criterion(
+                output_surface_test, target_surface_test_normalized)
+            weighted_test_loss_surface = torch.mean(
+                test_loss_surface * surface_weights)
 
-        test_loss_upper = criterion(output_test, target_test_normalized)
-        weighted_test_loss_upper = torch.mean(
-            test_loss_upper * upper_weights)
+            test_loss_upper = criterion(output_test, target_test_normalized)
+            weighted_test_loss_upper = torch.mean(
+                test_loss_upper * upper_weights)
 
-        # loss = weighted_test_loss_upper + weighted_test_loss_surface * 0.25
-        loss = weighted_test_loss_upper * upper_loss_weight + weighted_test_loss_surface * surface_loss_weight  # change loss weight
+            # loss = weighted_test_loss_upper + weighted_test_loss_surface * 0.25
+            loss = weighted_test_loss_upper * upper_loss_weight + weighted_test_loss_surface * surface_loss_weight  # change loss weight
 
         test_loss += loss.item()
         
@@ -370,10 +410,18 @@ def test(test_loader, model, device, res_path, visualize=False):
 
         # Compute test scores
         # rmse
+        output_surface_wind_speed, target_surface_wind_speed, output_wind_speed, target_wind_speed = get_wind_speed(output_surface_test, target_surface_test, output_test, target_test)
+        
         output_test = output_test.squeeze()
         target_test = target_test.squeeze()
         output_surface_test = output_surface_test.squeeze()
         target_surface_test = target_surface_test.squeeze()
+        
+        # output_surface_wind_speed = output_surface_wind_speed.squeeze()
+        # target_surface_wind_speed = target_surface_wind_speed.squeeze()
+        output_wind_speed = output_wind_speed.squeeze()
+        target_wind_speed = target_wind_speed.squeeze()
+        # print(output_surface_wind_speed.shape, target_surface_wind_speed.shape, output_wind_speed.shape, target_wind_speed.shape)
 
         rmse_upper_z[target_time] = score.weighted_rmse_torch_channels(output_test[0],
                                                                        target_test[0]).detach().cpu().numpy()
@@ -385,9 +433,13 @@ def test(test_loader, model, device, res_path, visualize=False):
                                                                        target_test[3]).detach().cpu().numpy()
         rmse_upper_v[target_time] = score.weighted_rmse_torch_channels(output_test[4],
                                                                        target_test[4]).detach().cpu().numpy()
+        rmse_upper_wind_speed[target_time] = score.weighted_rmse_torch_channels(output_wind_speed,
+                                                                       target_wind_speed).detach().cpu().numpy()
 
         rmse_surface[target_time] = score.weighted_rmse_torch_channels(output_surface_test,
                                                                        target_surface_test).detach().cpu().numpy()
+        rmse_surface_wind_speed[target_time] = score.weighted_rmse_torch_channels(output_surface_wind_speed,
+                                                                       target_surface_wind_speed).detach().cpu().numpy()
 
         # acc
         surface_mean, _, upper_mean, _ = aux_constants['weather_statistics_last']
@@ -415,10 +467,10 @@ def test(test_loader, model, device, res_path, visualize=False):
     # Save rmses to csv
     csv_path = os.path.join(res_path, "csv")
     utils.mkdirs(csv_path)
-    utils.save_errorScores(csv_path, rmse_upper_z, rmse_upper_q, rmse_upper_t, rmse_upper_u, rmse_upper_v, rmse_surface,
+    utils.save_errorScores(csv_path, rmse_upper_z, rmse_upper_q, rmse_upper_t, rmse_upper_u, rmse_upper_v, rmse_upper_wind_speed, rmse_surface, rmse_surface_wind_speed,
                            "rmse")
     utils.save_errorScores(csv_path, acc_upper_z, acc_upper_q,
-                           acc_upper_t, acc_upper_u, acc_upper_v, acc_surface, "acc")
+                           acc_upper_t, acc_upper_u, acc_upper_v, None, acc_surface, None, "acc")
     
     test_loss /= len(test_loader)
     print('test_loss:', test_loss)

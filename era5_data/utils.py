@@ -176,7 +176,7 @@ def torch_summarize(model, show_weights=False, show_parameters=False, show_gradi
     return tmpstr
 
 
-def save_errorScores(csv_path, z, q, t, u, v, surface, error):
+def save_errorScores(csv_path, z, q, t, u, v, wind_speed, surface, surface_wind_speed, error):
     score_upper_z = pd.DataFrame.from_dict(z,
                                            orient='index',
                                            columns=cfg.ERA5_UPPER_LEVELS)
@@ -192,16 +192,28 @@ def save_errorScores(csv_path, z, q, t, u, v, surface, error):
     score_upper_v = pd.DataFrame.from_dict(v,
                                            orient='index',
                                            columns=cfg.ERA5_UPPER_LEVELS)
+    if wind_speed is not None:
+        score_upper_wind_speed = pd.DataFrame.from_dict(wind_speed,
+                                            orient='index',
+                                            columns=cfg.ERA5_UPPER_LEVELS)
     score_surface = pd.DataFrame.from_dict(surface,
                                            orient='index',
                                            columns=cfg.ERA5_SURFACE_VARIABLES)
+    if surface_wind_speed is not None:
+        score_surface_wind_speed = pd.DataFrame.from_dict(surface_wind_speed,
+                                            orient='index',
+                                            columns=['wind_speed'])
 
     score_upper_z.to_csv("{}/{}.csv".format(csv_path, f'{error}_upper_z'))
     score_upper_q.to_csv("{}/{}.csv".format(csv_path, f'{error}_upper_q'))
     score_upper_t.to_csv("{}/{}.csv".format(csv_path, f'{error}_upper_t'))
     score_upper_u.to_csv("{}/{}.csv".format(csv_path, f'{error}_upper_u'))
     score_upper_v.to_csv("{}/{}.csv".format(csv_path, f'{error}_upper_v'))
+    if wind_speed is not None:
+        score_upper_wind_speed.to_csv("{}/{}.csv".format(csv_path, f'{error}_upper_wind_speed'))
     score_surface.to_csv("{}/{}.csv".format(csv_path, f'{error}_surface'))
+    if surface_wind_speed is not None:
+        score_surface_wind_speed.to_csv("{}/{}.csv".format(csv_path, f'{error}_surface_wind_speed'))
 
 
 if __name__ == "__main__":
