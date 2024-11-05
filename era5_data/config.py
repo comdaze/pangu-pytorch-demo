@@ -26,8 +26,7 @@ else:
     __C.PG_INPUT_PATH = __C.GLOBAL.PATH
 assert __C.PG_INPUT_PATH is not None
 
-# __C.PG_OUT_PATH = os.path.join(__C.GLOBAL.PATH, 'model')  # 'result'
-__C.PG_OUT_PATH = 'result'  # FSx is not writable
+__C.PG_OUT_PATH = os.path.join(__C.GLOBAL.PATH, 'model')  # 'result'
 assert __C.PG_OUT_PATH is not None
 
 __C.ERA5_UPPER_LEVELS = ['1000', '925', '850', '700', '600',
@@ -50,7 +49,7 @@ __C.PG.TRAIN.ACCUMULATION_STEPS = 1  # 累积 4 个小批次的梯度
 __C.PG.TRAIN.START_TIME = '20180101 12:00:00'
 __C.PG.TRAIN.END_TIME = '20230101 12:00:00'
 __C.PG.TRAIN.FREQUENCY = '24h'  # default: 12h (HORIZON=24)
-__C.PG.TRAIN.BATCH_SIZE = 4  # match GPU num
+__C.PG.TRAIN.BATCH_SIZE = 8  # match GPU num
 __C.PG.TRAIN.UPPER_WEIGHTS = [3.00, 0.60, 1.50, 0.77, 0.54]
 __C.PG.TRAIN.SURFACE_WEIGHTS = [1.50, 0.77, 0.66, 3.00]
 __C.PG.TRAIN.UPPER_LOSS_WEIGHT = 1.0
@@ -67,11 +66,6 @@ __C.PG.VAL.INTERVAL = 1
 
 
 __C.PG.TEST = edict()
-
-# __C.PG.TEST.START_TIME = '20230101'
-# __C.PG.TEST.END_TIME = '20240101'
-# __C.PG.TEST.FREQUENCY = '12h'  # default: 12h (HORIZON=24)
-# __C.PG.TEST.BATCH_SIZE = 1  # only support 1
 
 __C.PG.TEST.START_TIME = '20230101 12:00:00'
 __C.PG.TEST.END_TIME = '20240101 12:00:00'

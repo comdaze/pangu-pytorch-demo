@@ -111,12 +111,12 @@ if __name__ == "__main__":
         train_sampler = DistributedSampler(
             train_dataset, shuffle=True, drop_last=True)
 
-        train_dataloader = data.DataLoader(dataset=train_dataset, batch_size=1,  # replace len(opt['gpu_ids']) with world_size  # cfg.PG.TRAIN.BATCH_SIZE//world_size
-                                           num_workers=args.num_workers, pin_memory=True, sampler=train_sampler)  # default: num_workers=0, pin_memory=False
+        train_dataloader = data.DataLoader(dataset=train_dataset, batch_size=cfg.PG.TRAIN.BATCH_SIZE//world_size,  # replace len(opt['gpu_ids']) with world_size
+                                           num_workers=args.num_workers, prefetch_factor=2, pin_memory=True, sampler=train_sampler)  # default: num_workers=0, pin_memory=False
     else:
         train_dataloader = data.DataLoader(dataset=train_dataset,
                                            batch_size=cfg.PG.TRAIN.BATCH_SIZE,
-                                           drop_last=True, shuffle=True, num_workers=args.num_workers, pin_memory=True)  # default: num_workers=0
+                                           drop_last=True, shuffle=True, num_workers=args.num_workers, prefetch_factor=2, pin_memory=True)  # default: num_workers=0
 
     dataset_length = len(train_dataloader)
     if rank == 0:
@@ -134,7 +134,7 @@ if __name__ == "__main__":
                                        device='cpu')  # device
 
     val_dataloader = data.DataLoader(dataset=val_dataset, batch_size=cfg.PG.VAL.BATCH_SIZE,
-                                     drop_last=True, shuffle=False, num_workers=args.num_workers, pin_memory=True)  # default: num_workers=0, pin_memory=False
+                                     drop_last=True, shuffle=False, num_workers=args.num_workers, prefetch_factor=2, pin_memory=True)  # default: num_workers=0, pin_memory=False
 
     # test_dataset = utils_data.NetCDFDataset(nc_path=PATH,
     test_dataset = utils_data.PTDataset(pt_path=PATH,
@@ -148,18 +148,18 @@ if __name__ == "__main__":
                                         device='cpu')  # device
 
     test_dataloader = data.DataLoader(dataset=test_dataset, batch_size=cfg.PG.TEST.BATCH_SIZE,
-                                      drop_last=True, shuffle=False, num_workers=args.num_workers, pin_memory=True)  # default: num_workers=0, pin_memory=False
+                                      drop_last=True, shuffle=False, num_workers=args.num_workers, prefetch_factor=2, pin_memory=True)  # default: num_workers=0, pin_memory=False
 
     model = PanguModel(device=device).to(device)
     
     if cfg.PG.HORIZON == 1:
-        checkpoint = torch.load(cfg.PG.BENCHMARK.PRETRAIN_1_torch)
+        checkpoint = torch.load(cfg.PG.BENCHMARK.PRETRAIN_1_torch, weights_only=True)
     elif cfg.PG.HORIZON == 3:
-        checkpoint = torch.load(cfg.PG.BENCHMARK.PRETRAIN_3_torch)
+        checkpoint = torch.load(cfg.PG.BENCHMARK.PRETRAIN_3_torch, weights_only=True)
     elif cfg.PG.HORIZON == 6:
-        checkpoint = torch.load(cfg.PG.BENCHMARK.PRETRAIN_6_torch)
+        checkpoint = torch.load(cfg.PG.BENCHMARK.PRETRAIN_6_torch, weights_only=True)
     elif cfg.PG.HORIZON == 24:
-        checkpoint = torch.load(cfg.PG.BENCHMARK.PRETRAIN_24_torch)
+        checkpoint = torch.load(cfg.PG.BENCHMARK.PRETRAIN_24_torch, weights_only=True)
     else:
         print('cfg.PG.HORIZON:', cfg.PG.HORIZON, 'NO CHECKPOINT FOUND')
     model.load_state_dict(checkpoint['model'])
@@ -216,6 +216,7 @@ if __name__ == "__main__":
                         writer=writer, logger=logger, start_epoch=start_epoch, rank=rank, visualize=args.visualize)
 
     if rank == 0:
+        print('args:', args)
         for name, param in peft_model.base_model.named_parameters():
             if "lora" not in name:
                 continue

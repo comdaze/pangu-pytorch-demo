@@ -180,7 +180,7 @@ if __name__ == "__main__":
     start_epoch = 1
     
     if args.load_pretrained:
-        cpk = torch.load(os.path.join(output_path, "models/train_29.pth"), weights_only=True)
+        cpk = torch.load(os.path.join(output_path, "models/train_30.pth"), weights_only=True)
         cpk['model'] = {k.replace("module.", ""): v for k, v in cpk['model'].items()}
         model.load_state_dict(cpk['model'])
         optimizer.load_state_dict(cpk['optimizer'])
