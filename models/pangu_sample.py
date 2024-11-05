@@ -242,7 +242,7 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
                             output_surface_wind_speed, target_surface_wind_speed, output_wind_speed, target_wind_speed = get_wind_speed(output_surface_val, target_surface_val, output_val, target_val)
                             surface_wind_speed_loss = criterion(output_surface_wind_speed, target_surface_wind_speed)
                             wind_speed_loss = criterion(output_wind_speed, target_wind_speed)
-                            loss = surface_wind_speed_loss + wind_speed_loss
+                            loss = torch.mean(surface_wind_speed_loss) + torch.mean(wind_speed_loss)
                         else:
                             val_loss_surface = criterion(
                                 output_surface_val, target_surface_val)
@@ -357,7 +357,7 @@ def test(test_loader, model, device, res_path, visualize=False, only_use_wind_sp
                                                             aux_constants['weather_statistics_last'])
         
         if only_use_wind_speed_loss:
-            output_surface_wind_speed, target_surface_wind_speed, output_wind_speed, target_wind_speed = get_wind_speed(output_surface_test, target_surface_test, output_test, target_test)
+            output_surface_wind_speed, target_surface_wind_speed, output_wind_speed, target_wind_speed = get_wind_speed(output_surface_test, target_surface_test_normalized, output_test, target_test_normalized)
             surface_wind_speed_loss = criterion(output_surface_wind_speed, target_surface_wind_speed)
             wind_speed_loss = criterion(output_wind_speed, target_wind_speed)
             loss = torch.mean(surface_wind_speed_loss) + torch.mean(wind_speed_loss)
