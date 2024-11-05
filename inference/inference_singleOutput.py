@@ -1,3 +1,9 @@
+# wget https://developer.download.nvidia.com/compute/cudnn/9.5.1/local_installers/cudnn-local-repo-ubuntu2204-9.5.1_1.0-1_amd64.deb
+# sudo dpkg -i cudnn-local-repo-ubuntu2204-9.5.1_1.0-1_amd64.deb
+# sudo cp /var/cudnn-local-repo-ubuntu2204-9.5.1/cudnn-*-keyring.gpg /usr/share/keyrings/
+# sudo apt-get update
+# sudo apt-get -y install cudnn
+
 import os
 import sys
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -16,6 +22,11 @@ import torch
 from era5_data.config import cfg
 from era5_data import score
 from era5_data import utils, utils_data
+
+from models.pangu_sample import get_wind_speed
+
+visualize = False  # True
+only_use_wind_speed_loss = False  # True
 
 # The directory of your input and output data
 PATH = cfg.PG_INPUT_PATH
@@ -76,9 +87,10 @@ test_dataloader = data.DataLoader(dataset=test_dataset, batch_size=cfg.PG.TEST.B
                                   drop_last=True, shuffle=False, num_workers=8, pin_memory=False)  # default: num_workers=0
 
 # Dic to save rmses
-rmse_upper_z, rmse_upper_q, rmse_upper_t, rmse_upper_u, rmse_upper_v = dict(
-), dict(), dict(), dict(), dict()
+rmse_upper_z, rmse_upper_q, rmse_upper_t, rmse_upper_u, rmse_upper_v, rmse_upper_wind_speed = dict(
+), dict(), dict(), dict(), dict(), dict()
 rmse_surface = dict()
+rmse_surface_wind_speed = dict()
 
 acc_upper_z, acc_upper_q, acc_upper_t, acc_upper_u, acc_upper_v = dict(
 ), dict(), dict(), dict(), dict()
@@ -127,53 +139,68 @@ for data in tqdm(test_dataloader):
 
     output, output_surface = torch.from_numpy(output).type(
         torch.float32), torch.from_numpy(output_surface).type(torch.float32)
-
-    target, target_surface = target.squeeze(), target_surface.squeeze()
-    output, output_surface = output.squeeze(), output_surface.squeeze()
+    
+    output_surface_wind_speed, target_surface_wind_speed, output_wind_speed, target_wind_speed = get_wind_speed(output_surface.unsqueeze(0), target_surface, output.unsqueeze(0), target)
     
     # Noralize the gt to make the loss compariable
     target_normalized, target_surface_normalized = utils_data.normData(target, target_surface, aux_constants['weather_statistics_last'])
     output_normalized, output_surface_normalized = utils_data.normData(output, output_surface, aux_constants['weather_statistics_last'])
 
-    # We use the MAE loss to train the model
-    # Different weight can be applied for different fields if needed
-    loss_surface = criterion(output_surface_normalized, target_surface_normalized)
-    weighted_surface_loss = torch.mean(loss_surface * surface_weights)
 
-    loss_upper = criterion(output_normalized, target_normalized)
-    weighted_upper_loss = torch.mean(loss_upper * upper_weights)
-    # The weight of surface loss is 0.25
-    # loss = weighted_upper_loss + weighted_surface_loss * 0.25
-    loss = weighted_upper_loss * upper_loss_weight + weighted_surface_loss * surface_loss_weight  # change loss weight
-    
+    if only_use_wind_speed_loss:
+        output_surface_wind_speed_normalized, target_surface_wind_speed_normalized, output_wind_speed_normalized, target_wind_speed_normalized = get_wind_speed(output_surface_normalized, target_surface_normalized, output_normalized, target_normalized)
+        surface_wind_speed_loss = criterion(output_surface_wind_speed_normalized, target_surface_wind_speed_normalized)
+        wind_speed_loss = criterion(output_wind_speed_normalized, target_wind_speed_normalized)
+        loss = surface_wind_speed_loss + wind_speed_loss
+    else:
+        # We use the MAE loss to train the model
+        # Different weight can be applied for different fields if needed
+        loss_surface = criterion(output_surface_normalized, target_surface_normalized)
+        weighted_surface_loss = torch.mean(loss_surface * surface_weights)
+
+        loss_upper = criterion(output_normalized, target_normalized)
+        weighted_upper_loss = torch.mean(loss_upper * upper_weights)
+        # The weight of surface loss is 0.25
+        # loss = weighted_upper_loss + weighted_surface_loss * 0.25
+        loss = weighted_upper_loss * upper_loss_weight + weighted_surface_loss * surface_loss_weight  # change loss weight
+        
     test_loss += loss.item()
     
-    # mslp, u,v,t2m 3: visualize t2m
-    png_path = os.path.join(output_data_dir, "png")
-    if not os.path.exists(png_path):
-        os.mkdir(png_path)
-        
-    utils.visuailze(output,
-                    target, 
-                    input.numpy().astype(np.float32).squeeze(),
-                    var='t',
-                    z=2,
-                    step=target_time, 
-                    path=png_path)
-
-    utils.visuailze_surface(output_surface,
-                            target_surface, 
-                            input_surface.numpy().astype(np.float32).squeeze(),
-                            var='u10',
-                            step=target_time, 
-                            path=png_path)
+    target, target_surface = target.squeeze(), target_surface.squeeze()
+    output, output_surface = output.squeeze(), output_surface.squeeze()
     
-    utils.visuailze_surface(output_surface,
-                            target_surface, 
-                            input_surface.numpy().astype(np.float32).squeeze(),
-                            var='v10',
-                            step=target_time, 
-                            path=png_path)
+    # output_surface_wind_speed = output_surface_wind_speed.squeeze()
+    # target_surface_wind_speed = target_surface_wind_speed.squeeze()
+    output_wind_speed = output_wind_speed.squeeze()
+    target_wind_speed = target_wind_speed.squeeze()
+    
+    # mslp, u,v,t2m 3: visualize t2m
+    if visualize:
+        png_path = os.path.join(output_data_dir, "png")
+        if not os.path.exists(png_path):
+            os.mkdir(png_path)
+            
+        utils.visuailze(output,
+                        target, 
+                        input.numpy().astype(np.float32).squeeze(),
+                        var='t',
+                        z=2,
+                        step=target_time, 
+                        path=png_path)
+
+        utils.visuailze_surface(output_surface,
+                                target_surface, 
+                                input_surface.numpy().astype(np.float32).squeeze(),
+                                var='u10',
+                                step=target_time, 
+                                path=png_path)
+        
+        utils.visuailze_surface(output_surface,
+                                target_surface, 
+                                input_surface.numpy().astype(np.float32).squeeze(),
+                                var='v10',
+                                step=target_time, 
+                                path=png_path)
 
     # RMSE for each variabl
 
@@ -187,8 +214,12 @@ for data in tqdm(test_dataloader):
         output[3], target[3]).numpy()
     rmse_upper_v[target_time] = score.weighted_rmse_torch_channels(
         output[4], target[4]).numpy()
+    rmse_upper_wind_speed[target_time] = score.weighted_rmse_torch_channels(
+        output_wind_speed, target_wind_speed).numpy()
     rmse_surface[target_time] = score.weighted_rmse_torch_channels(
         output_surface, target_surface).numpy()
+    rmse_surface_wind_speed[target_time] = score.weighted_rmse_torch_channels(
+        output_surface_wind_speed, target_surface_wind_speed).numpy()
 
     # acc
     surface_mean, _, upper_mean, _ = utils_data.weatherStatistics_output(filepath=os.path.join(cfg.PG_INPUT_PATH, 'aux_data'), device='cpu')
@@ -215,10 +246,10 @@ for data in tqdm(test_dataloader):
 csv_path = os.path.join(output_data_dir, "csv")
 utils.mkdirs(csv_path)
 
-utils.save_errorScores(csv_path, rmse_upper_z, rmse_upper_q, rmse_upper_t, rmse_upper_u, rmse_upper_v, rmse_surface,
+utils.save_errorScores(csv_path, rmse_upper_z, rmse_upper_q, rmse_upper_t, rmse_upper_u, rmse_upper_v, rmse_upper_wind_speed, rmse_surface, rmse_surface_wind_speed,
                        "rmse")
 utils.save_errorScores(csv_path, acc_upper_z, acc_upper_q,
-                       acc_upper_t, acc_upper_u, acc_upper_v, acc_surface, "acc")
+                       acc_upper_t, acc_upper_u, acc_upper_v, None, acc_surface, None, "acc")
 
 test_loss /= len(test_dataloader)
 print('test_loss:', test_loss)
