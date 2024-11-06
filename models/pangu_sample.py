@@ -304,7 +304,7 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
                         epochs_since_last_improvement = 0
                     else:
                         epochs_since_last_improvement += 1
-                        if epochs_since_last_improvement >= 5:  # TODO may move to config.py
+                        if epochs_since_last_improvement >= cfg.PG.TRAIN.EARLY_STOP:  # 5
                             logger.info(
                                 f"No improvement in validation loss for {epochs_since_last_improvement} epochs, terminating training.")
                             break
