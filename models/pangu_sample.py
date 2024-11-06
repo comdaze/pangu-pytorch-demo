@@ -191,7 +191,8 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
                 
         epoch_loss /= len(train_loader)
         epoch_end = time.time()
-        logger.info("Epoch {} Rank {}: loss={:.3f}, time={:.3f}".format(i, rank, epoch_loss, epoch_end-epoch_start))
+        current_lr = optimizer.param_groups[0]['lr']
+        logger.info("Epoch {} Rank {}: lr={:.6f}, loss={:.3f}, time={:.3f}".format(i, rank, current_lr, epoch_loss, epoch_end-epoch_start))
         
         loss_list.append(epoch_loss)
         lr_scheduler.step()
