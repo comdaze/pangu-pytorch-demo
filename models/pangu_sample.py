@@ -192,7 +192,7 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
         epoch_loss /= len(train_loader)
         epoch_end = time.time()
         current_lr = optimizer.param_groups[0]['lr']
-        logger.info("Epoch {} Rank {}: lr={:.6f}, loss={:.3f}, time={:.3f}".format(i, rank, current_lr, epoch_loss, epoch_end-epoch_start))
+        logger.info("Epoch {} Rank {}: lr={:.6f}, loss={:.6f}, time={:.3f}".format(i, rank, current_lr, epoch_loss, epoch_end-epoch_start))
         
         loss_list.append(epoch_loss)
         lr_scheduler.step()
@@ -265,7 +265,7 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
                                         'val': val_loss},
                                        i)
                     logger.info(
-                        "Validate at Epoch {} : {:.3f}".format(i, val_loss))
+                        "Validate at Epoch {} : {:.6f}".format(i, val_loss))
 
                     # Visualize the training process
                     if visualize:
