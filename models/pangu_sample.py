@@ -93,7 +93,7 @@ def get_wind_speed(output_surface, target_surface, output, target):
     return output_surface_wind_speed, target_surface_wind_speed, output_wind_speed, target_wind_speed
 
 def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, device, writer, logger, start_epoch,
-          rank=0, visualize=False, only_use_wind_speed_loss=False):
+          rank=0, visualize=False, only_use_wind_speed_loss=False, use_deepspeed=False):
     '''Training code'''
     # Prepare for the optimizer and scheduler
     # lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, 10, eta_min=0, last_epoch=- 1, verbose=False) #used in the paper
@@ -135,7 +135,8 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
                 # print(f'Epoch: {i}', '#'*20)
 
             if (iter_num + 1) % accumulation_steps == 0:
-                optimizer.zero_grad()
+                if not use_deepspeed:
+                    optimizer.zero_grad()
 
             # Load weather data at time t as the input; load weather data at time t+336 as the output
             # Note the data need to be randomly shuffled
@@ -179,13 +180,16 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
             # Call the backward algorithm and calculate the gratitude of parameters
             # scaler.scale(loss).backward()
             loss = loss / accumulation_steps  # 将损失除以累积步数
-            loss.backward()
-
-            # Update model parameters with Adam optimizer
-            # scaler.step(optimizer)
-            # scaler.update()
-            if (iter_num + 1) % accumulation_steps == 0:
-                optimizer.step()
+            if use_deepspeed:
+                model.backward(loss)
+                model.step()
+            else:
+                loss.backward()
+                # Update model parameters with Adam optimizer
+                # scaler.step(optimizer)
+                # scaler.update()
+                if (iter_num + 1) % accumulation_steps == 0:
+                    optimizer.step()
                 
             epoch_loss += loss.item()
                 
@@ -195,8 +199,9 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
         logger.info("Epoch {} Rank {}: lr={:.6f}, loss={:.6f}, time={:.3f}".format(i, rank, current_lr, epoch_loss, epoch_end-epoch_start))
         
         loss_list.append(epoch_loss)
-        lr_scheduler.step()
-        # scaler.update(lr_scheduler)
+        if not use_deepspeed:
+            lr_scheduler.step()
+            # scaler.update(lr_scheduler)
         #
         # for name, param in model.named_parameters():
         #   writer.add_histogram(name, param.data, i)
@@ -211,13 +216,23 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
 
             # Save the training model
             if i % cfg.PG.TRAIN.SAVE_INTERVAL == 0:
-                save_file = {"model": model.state_dict(),
-                             "optimizer": optimizer.state_dict(),
-                             "lr_scheduler": lr_scheduler.state_dict(),
-                             "epoch": i}
-                torch.save(save_file, os.path.join(
-                    model_save_path, 'train_{}.pth'.format(i)))
-                # torch.save(model, os.path.join(model_save_path,'train_{}.pth'.format(i)))
+                if use_deepspeed:
+                    save_file = {"model": model.module.state_dict(),
+                                "optimizer": optimizer.state_dict(),
+                                "lr_scheduler": lr_scheduler.state_dict(),
+                                "epoch": i}
+                    torch.save(save_file, os.path.join(
+                        model_save_path, 'train_{}.pth'.format(i)))
+                    # torch.save(model, os.path.join(model_save_path,'train_{}.pth'.format(i)))
+                else:
+                    save_file = {"model": model.state_dict(),
+                                "optimizer": optimizer.state_dict(),
+                                "lr_scheduler": lr_scheduler.state_dict(),
+                                "epoch": i}
+                    torch.save(save_file, os.path.join(
+                        model_save_path, 'train_{}.pth'.format(i)))
+                    # torch.save(model, os.path.join(model_save_path,'train_{}.pth'.format(i)))
+                logger.info(f"model is saved at {i} epoch.")
 
             # Begin to validate
             if i % cfg.PG.VAL.INTERVAL == 0:
@@ -296,10 +311,15 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
                     # Early stopping
                     if val_loss < best_loss:
                         best_loss = val_loss
-                        best_model = copy.deepcopy(model)
                         # Save the best model
-                        torch.save(best_model, os.path.join(
-                            model_save_path, 'best_model.pth'))
+                        if use_deepspeed:
+                            # model.save_checkpoint(model_save_path, tag=f"best_model")
+                            torch.save(model.module.state_dict(), os.path.join(
+                                model_save_path, 'best_model.pth'))
+                        else:
+                            best_model = copy.deepcopy(model)
+                            torch.save(best_model, os.path.join(
+                                model_save_path, 'best_model.pth'))
                         logger.info(
                             f"current best model is saved at {i} epoch.")
                         epochs_since_last_improvement = 0

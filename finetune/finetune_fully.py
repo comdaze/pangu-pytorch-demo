@@ -44,12 +44,13 @@ if __name__ == "__main__":
     parser.add_argument('--load_pretrained', type=str2bool, default=False)
     parser.add_argument('--load_my_best', type=str2bool, default=True)
     parser.add_argument('--launcher', default='pytorch', help='job launcher')
-    # parser.add_argument('--local-rank', type=int, default=0)
+    parser.add_argument('--local_rank', type=int, default=-1)
     parser.add_argument('--num_workers', type=int, default=4)
     parser.add_argument('--dist', type=str2bool, default=True)
     parser.add_argument('--only_test', type=str2bool, default=False)
     parser.add_argument('--visualize', type=str2bool, default=False)
     parser.add_argument('--only_use_wind_speed_loss', type=str2bool, default=False)
+    parser.add_argument('--use_deepspeed', type=str2bool, default=False)
 
     args = parser.parse_args()
     starts = time.time()
@@ -67,7 +68,10 @@ if __name__ == "__main__":
     # ----------------------------------------
     # distributed settings
     # ----------------------------------------
-    if args.dist:
+    if args.use_deepspeed:
+        import deepspeed
+        deepspeed.init_distributed(dist_backend='nccl')
+    elif args.dist:
         init_dist(args.launcher, backend='nccl')
     rank, world_size = get_dist_info()
     print("The rank and world size is", rank, world_size)
@@ -164,9 +168,46 @@ if __name__ == "__main__":
     for param in model.parameters():
         param.requires_grad = True
         
-    optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters(
-    )), lr=cfg.PG.TRAIN.LR, weight_decay=cfg.PG.TRAIN.WEIGHT_DECAY)
+    if args.use_deepspeed:
+        # 定义参数组
+        parameters = filter(lambda p: p.requires_grad, model.parameters())
 
+        # DeepSpeed初始化
+        ds_config = "ds_config.json"  # 配置文件路径
+        model, optimizer, _, lr_scheduler = deepspeed.initialize(
+            args=args,
+            model=model,
+            model_parameters=parameters,
+            config=ds_config
+        )
+        start_epoch = 1
+        
+        # # TODO: 加载之前的检查点（如果需要）
+        # if args.load_pretrained:
+        #     _, client_sd = model.load_checkpoint(output_path, tag="train_57")
+        #     start_epoch = client_sd['epoch'] + 1
+        # else:
+        #     start_epoch = 1
+    else:
+        optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters(
+        )), lr=cfg.PG.TRAIN.LR, weight_decay=cfg.PG.TRAIN.WEIGHT_DECAY)
+
+        lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(
+            optimizer, milestones=[25, 50], gamma=0.5)
+        start_epoch = 1
+        
+        if args.load_pretrained:
+            cpk = torch.load(os.path.join(output_path, "models/train_57.pth"), weights_only=True)
+            cpk['model'] = {k.replace("module.", ""): v for k, v in cpk['model'].items()}
+            model.load_state_dict(cpk['model'])
+            optimizer.load_state_dict(cpk['optimizer'])
+            lr_scheduler.load_state_dict(cpk['lr_scheduler'])
+            start_epoch = cpk["epoch"]+1
+            del cpk
+            torch.cuda.empty_cache()
+        
+        model = DDP(model)  # Use DistributedDataParallel
+        
     if rank == 0:
         msg = '\n'
         msg += utils.torch_summarize(model, show_weights=False)
@@ -176,22 +217,6 @@ if __name__ == "__main__":
     # if rank == 0:
     #     print("weather statistics are loaded!")
 
-    lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(
-        optimizer, milestones=[25, 50], gamma=0.5)
-    start_epoch = 1
-    
-    if args.load_pretrained:
-        cpk = torch.load(os.path.join(output_path, "models/train_57.pth"), weights_only=True)
-        cpk['model'] = {k.replace("module.", ""): v for k, v in cpk['model'].items()}
-        model.load_state_dict(cpk['model'])
-        optimizer.load_state_dict(cpk['optimizer'])
-        lr_scheduler.load_state_dict(cpk['lr_scheduler'])
-        start_epoch = cpk["epoch"]+1
-        del cpk
-        torch.cuda.empty_cache()
-    
-    model = DDP(model)  # Use DistributedDataParallel
-
     if not args.only_test:
         model = train(model, train_loader=train_dataloader,
                     val_loader=val_dataloader,
@@ -199,14 +224,18 @@ if __name__ == "__main__":
                     lr_scheduler=lr_scheduler,
                     res_path=output_path,
                     device=device,
-                    writer=writer, logger=logger, start_epoch=start_epoch, rank=rank, visualize=args.visualize, only_use_wind_speed_loss=args.only_use_wind_speed_loss)
+                    writer=writer, logger=logger, start_epoch=start_epoch, rank=rank, visualize=args.visualize, only_use_wind_speed_loss=args.only_use_wind_speed_loss, use_deepspeed=args.use_deepspeed)
 
     if rank == 0:
         print('args:', args)
         if args.load_my_best:
             print('load_my_best')
-            best_model = torch.load(os.path.join(
-                output_path, "models/best_model.pth"), weights_only=False, map_location=device)  # 'cuda:0'
+            if args.use_deepspeed:
+                best_model = PanguModel(device=device).to(device)
+                best_model.load_state_dict(torch.load(os.path.join(output_path, "models/best_model.pth"), weights_only=True))
+            else:
+                best_model = torch.load(os.path.join(
+                    output_path, "models/best_model.pth"), weights_only=False, map_location=device)  # 'cuda:0'
         else:
             best_model = model
 
