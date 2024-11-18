@@ -1,5 +1,5 @@
 {
-    "train_batch_size": 4,
+    "train_batch_size": 8,
     "gradient_accumulation_steps": 1,
     "optimizer": {
         "type": "Adam",
@@ -21,5 +21,11 @@
     },
     "zero_optimization": {
         "stage": 1
+    },
+    "pipeline": {
+        "enabled": true,
+        "num_stages": 4,
+        "pipe_chunk_size": 2,
+        "activation_checkpoint_interval": 1
     }
 }
