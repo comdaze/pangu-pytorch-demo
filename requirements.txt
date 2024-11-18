@@ -6,3 +6,5 @@ peft
 onnx
 onnxruntime-gpu
 tenacity
+# setuptools==65.5.0  # install first
+deepspeed
