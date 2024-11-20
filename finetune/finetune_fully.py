@@ -45,7 +45,7 @@ if __name__ == "__main__":
     parser.add_argument('--load_my_best', type=str2bool, default=True)
     parser.add_argument('--launcher', default='pytorch', help='job launcher')
     parser.add_argument('--local_rank', type=int, default=-1)
-    parser.add_argument('--num_workers', type=int, default=4)
+    parser.add_argument('--num_workers', type=int, default=1)
     parser.add_argument('--dist', type=str2bool, default=True)
     parser.add_argument('--only_test', type=str2bool, default=False)
     parser.add_argument('--visualize', type=str2bool, default=False)
