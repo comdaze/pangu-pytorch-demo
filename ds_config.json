@@ -20,12 +20,13 @@
         "enabled": false
     },
     "zero_optimization": {
-        "stage": 1
-    },
-    "pipeline": {
-        "enabled": true,
-        "num_stages": 4,
-        "pipe_chunk_size": 2,
-        "activation_checkpoint_interval": 1
+        "stage": 2,
+        "contiguous_gradients": true,
+        "overlap_comm": true, 
+        "allgather_partitions": true,
+        "reduce_scatter": true,
+        "reduce_bucket_size": 5e7,
+        "allgather_bucket_size": 5e7,
+        "cpu_offload": true
     }
 }
