@@ -199,9 +199,8 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
         logger.info("Epoch {} Rank {}: lr={:.6f}, loss={:.6f}, time={:.3f}".format(i, rank, current_lr, epoch_loss, epoch_end-epoch_start))
         
         loss_list.append(epoch_loss)
-        if not use_deepspeed:
-            lr_scheduler.step()
-            # scaler.update(lr_scheduler)
+        lr_scheduler.step()  # 即使是DeepSpeed，我们也手动管理lr_scheduler
+        # scaler.update(lr_scheduler)
         #
         # for name, param in model.named_parameters():
         #   writer.add_histogram(name, param.data, i)

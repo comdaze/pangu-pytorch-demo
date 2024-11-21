@@ -8,13 +8,6 @@
             "weight_decay": 3e-6
         }
     },
-    "scheduler": {
-        "type": "MultiStepLR",
-        "params": {
-            "milestones": [25, 50],
-            "gamma": 0.5
-        }
-    },
     "fp16": {
         "enabled": false
     },
