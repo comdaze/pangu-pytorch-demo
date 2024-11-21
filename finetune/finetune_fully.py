@@ -174,15 +174,22 @@ if __name__ == "__main__":
 
         # DeepSpeed初始化
         ds_config = "ds_config.json"  # 配置文件路径
-        model, optimizer, _, lr_scheduler = deepspeed.initialize(
+        model, optimizer, _, _ = deepspeed.initialize(
             args=args,
             model=model,
             model_parameters=parameters,
             config=ds_config
         )
+        # 获取原始优化器并设置scheduler
+        base_optimizer = model.optimizer.optimizer
+        lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(
+            base_optimizer,
+            milestones=[25, 50],
+            gamma=0.5
+        )
         start_epoch = 1
         
-        # # TODO: 加载之前的检查点（如果需要）
+        # # TODO [not implemented]: 加载之前的检查点（如果需要）
         # if args.load_pretrained:
         #     _, client_sd = model.load_checkpoint(output_path, tag="train_57")
         #     start_epoch = client_sd['epoch'] + 1
