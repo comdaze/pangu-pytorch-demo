@@ -25,8 +25,9 @@ from era5_data import utils, utils_data
 
 from models.pangu_sample import get_wind_speed
 
-visualize = False  # True
-only_use_wind_speed_loss = False  # True
+visualize = False  # True/False
+only_use_wind_speed_loss = True  # True/False
+use_custom_mask = True  # True/False
 
 # The directory of your input and output data
 PATH = cfg.PG_INPUT_PATH
@@ -140,6 +141,14 @@ for data in tqdm(test_dataloader):
     output, output_surface = torch.from_numpy(output).type(
         torch.float32), torch.from_numpy(output_surface).type(torch.float32)
     
+    # print('before use_custom_mask target:', target.shape, 'target_surface:', target_surface.shape, 'output:', output.shape, 'output_surface:', output_surface.shape)
+    if use_custom_mask:
+        target = target*aux_constants['custom_mask'][np.newaxis, :, :]
+        target_surface = target_surface*aux_constants['custom_mask'][np.newaxis, np.newaxis, :, :]
+        output = output*aux_constants['custom_mask'][np.newaxis, :, :]
+        output_surface = output_surface*aux_constants['custom_mask'][np.newaxis, :, :]
+    # print('after use_custom_mask target:', target.shape, 'target_surface:', target_surface.shape, 'output:', output.shape, 'output_surface:', output_surface.shape)
+
     output_surface_wind_speed, target_surface_wind_speed, output_wind_speed, target_wind_speed = get_wind_speed(output_surface.unsqueeze(0), target_surface, output.unsqueeze(0), target)
     
     # Noralize the gt to make the loss compariable
