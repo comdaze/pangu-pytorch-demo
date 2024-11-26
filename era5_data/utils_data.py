@@ -463,6 +463,14 @@ def LoadConstantMask3(filepath="/home/ec2-user/pangu-pytorch/aux_data", device="
     mask = torch.from_numpy(mask)
     return mask.to(device)
 
+def LoadCustomMask(filepath="/home/ec2-user/pangu-pytorch/aux_data", device="cpu"):
+    if os.path.exists(os.path.join(filepath, "custom_mask.npy")):
+        mask = np.load(os.path.join(filepath, "custom_mask.npy")
+                    ).astype(np.float32)
+        mask = torch.from_numpy(mask)
+        return mask.to(device)
+    else:
+        return None
 
 def computeStatistics(train_loader):
     # prepare for the statistics
@@ -514,6 +522,7 @@ def loadAllConstants(device):
         device=device)  # not able to be equal
     constants['variable_weights'] = loadVariableWeights(device=device)
     constants['const_h'] = loadConstMask_h(filepath=os.path.join(cfg.PG_INPUT_PATH, 'aux_data'), device=device)
+    constants['custom_mask'] = LoadCustomMask(filepath=os.path.join(cfg.PG_INPUT_PATH, 'aux_data'), device=device)
 
     return constants
 
