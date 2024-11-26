@@ -162,12 +162,25 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
             # print(f"output.shape: {output.shape}, output_surface.shape: {output_surface.shape}")
             
             # print('before use_custom_mask target:', target.shape, 'target_surface:', target_surface.shape, 'output:', output.shape, 'output_surface:', output_surface.shape)
+            # print('before use_custom_mask target:', target.dtype, 'target_surface:', target_surface.dtype, 'output:', output.dtype, 'output_surface:', output_surface.dtype)
             if use_custom_mask:
-                target = target*aux_constants['custom_mask'][np.newaxis, :, :]
-                target_surface = target_surface*aux_constants['custom_mask'][np.newaxis, np.newaxis, :, :]
-                output = output*aux_constants['custom_mask'][np.newaxis, :, :]
-                output_surface = output_surface*aux_constants['custom_mask'][np.newaxis, :, :]
+                # custom_mask = aux_constants['custom_mask'].detach()
+                # # print(aux_constants['custom_mask'].device, aux_constants['custom_mask'].dtype)
+                # # # 检查是否有NaN或无穷大
+                # # print("Has NaN:", torch.isnan(custom_mask).any())
+                # # print("Has Inf:", torch.isinf(custom_mask).any())
+                # target = target*custom_mask[None, :, :]
+                # target_surface = target_surface*custom_mask[None, None, :, :]
+                # output = output*custom_mask[None, :, :]
+                # output_surface = output_surface*custom_mask[None, None, :, :]
+                # 解决：RuntimeError: linalg.vector_norm: Expected a floating point or complex tensor as input. Got Long
+                custom_mask = aux_constants['custom_mask'] == 0
+                target = target.masked_fill(custom_mask[None, :, :], 0)
+                target_surface = target_surface.masked_fill(custom_mask[None, None, :, :], 0)
+                output = output.masked_fill(custom_mask[None, :, :], 0)
+                output_surface = output_surface.masked_fill(custom_mask[None, None, :, :], 0)
             # print('after use_custom_mask target:', target.shape, 'target_surface:', target_surface.shape, 'output:', output.shape, 'output_surface:', output_surface.shape)
+            # print('after use_custom_mask target:', target.dtype, 'target_surface:', target_surface.dtype, 'output:', output.dtype, 'output_surface:', output_surface.dtype)
 
             if only_use_wind_speed_loss:
                 output_surface_wind_speed, target_surface_wind_speed, output_wind_speed, target_wind_speed = get_wind_speed(output_surface, target_surface, output, target)
