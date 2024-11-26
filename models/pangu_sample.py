@@ -11,6 +11,7 @@ import subprocess
 
 import torch
 from torch import nn
+import numpy as np
 
 from era5_data import score
 from era5_data.config import cfg
@@ -93,7 +94,7 @@ def get_wind_speed(output_surface, target_surface, output, target):
     return output_surface_wind_speed, target_surface_wind_speed, output_wind_speed, target_wind_speed
 
 def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, device, writer, logger, start_epoch,
-          rank=0, visualize=False, only_use_wind_speed_loss=False, use_deepspeed=False):
+          rank=0, visualize=False, only_use_wind_speed_loss=False, use_custom_mask=False, use_deepspeed=False):
     '''Training code'''
     # Prepare for the optimizer and scheduler
     # lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, 10, eta_min=0, last_epoch=- 1, verbose=False) #used in the paper
@@ -159,6 +160,14 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
                 target, target_surface, aux_constants['weather_statistics_last'])
             
             # print(f"output.shape: {output.shape}, output_surface.shape: {output_surface.shape}")
+            
+            # print('before use_custom_mask target:', target.shape, 'target_surface:', target_surface.shape, 'output:', output.shape, 'output_surface:', output_surface.shape)
+            if use_custom_mask:
+                target = target*aux_constants['custom_mask'][np.newaxis, :, :]
+                target_surface = target_surface*aux_constants['custom_mask'][np.newaxis, np.newaxis, :, :]
+                output = output*aux_constants['custom_mask'][np.newaxis, :, :]
+                output_surface = output_surface*aux_constants['custom_mask'][np.newaxis, :, :]
+            # print('after use_custom_mask target:', target.shape, 'target_surface:', target_surface.shape, 'output:', output.shape, 'output_surface:', output_surface.shape)
 
             if only_use_wind_speed_loss:
                 output_surface_wind_speed, target_surface_wind_speed, output_wind_speed, target_wind_speed = get_wind_speed(output_surface, target_surface, output, target)
@@ -253,6 +262,14 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
                         target_val, target_surface_val = utils_data.normData(target_val, target_surface_val,
                                                                              aux_constants['weather_statistics_last'])
 
+                        # print('before use_custom_mask target_val:', target_val.shape, 'target_surface_val:', target_surface_val.shape, 'output_val:', output_val.shape, 'output_surface_val:', output_surface_val.shape)
+                        if use_custom_mask:
+                            target_val = target_val*aux_constants['custom_mask'][np.newaxis, :, :]
+                            target_surface_val = target_surface_val*aux_constants['custom_mask'][np.newaxis, np.newaxis, :, :]
+                            output_val = output_val*aux_constants['custom_mask'][np.newaxis, :, :]
+                            output_surface_val = output_surface_val*aux_constants['custom_mask'][np.newaxis, :, :]
+                        # print('after use_custom_mask target_val:', target_val.shape, 'target_surface_val:', target_surface_val.shape, 'output_val:', output_val.shape, 'output_surface_val:', output_surface_val.shape)
+                        
                         if only_use_wind_speed_loss:
                             output_surface_wind_speed, target_surface_wind_speed, output_wind_speed, target_wind_speed = get_wind_speed(output_surface_val, target_surface_val, output_val, target_val)
                             surface_wind_speed_loss = criterion(output_surface_wind_speed, target_surface_wind_speed)
@@ -337,7 +354,7 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
     return best_model
 
 
-def test(test_loader, model, device, res_path, visualize=False, only_use_wind_speed_loss=False):
+def test(test_loader, model, device, res_path, visualize=False, only_use_wind_speed_loss=False, use_custom_mask=False):
     # set up empty dics for rmses and anormaly correlation coefficients
     rmse_upper_z, rmse_upper_q, rmse_upper_t, rmse_upper_u, rmse_upper_v, rmse_upper_wind_speed = dict(
     ), dict(), dict(), dict(), dict(), dict()
@@ -375,6 +392,14 @@ def test(test_loader, model, device, res_path, visualize=False, only_use_wind_sp
         # Noralize the gt to make the loss compariable
         target_test_normalized, target_surface_test_normalized = utils_data.normData(target_test, target_surface_test,
                                                             aux_constants['weather_statistics_last'])
+        
+        # print('before use_custom_mask target_test_normalized:', target_test_normalized.shape, 'target_surface_test_normalized:', target_surface_test_normalized.shape, 'output_test:', output_test.shape, 'output_surface_test:', output_surface_test.shape)
+        if use_custom_mask:
+            target_test_normalized = target_test_normalized*aux_constants['custom_mask'][np.newaxis, :, :]
+            target_surface_test_normalized = target_surface_test_normalized*aux_constants['custom_mask'][np.newaxis, np.newaxis, :, :]
+            output_test = output_test*aux_constants['custom_mask'][np.newaxis, :, :]
+            output_surface_test = output_surface_test*aux_constants['custom_mask'][np.newaxis, :, :]
+        # print('after use_custom_mask target_test_normalized:', target_test_normalized.shape, 'target_surface_test_normalized:', target_surface_test_normalized.shape, 'output_test:', output_test.shape, 'output_surface_test:', output_surface_test.shape)
         
         if only_use_wind_speed_loss:
             output_surface_wind_speed, target_surface_wind_speed, output_wind_speed, target_wind_speed = get_wind_speed(output_surface_test, target_surface_test_normalized, output_test, target_test_normalized)
