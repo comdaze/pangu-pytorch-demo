@@ -50,6 +50,7 @@ if __name__ == "__main__":
     parser.add_argument('--only_test', type=str2bool, default=False)
     parser.add_argument('--visualize', type=str2bool, default=False)
     parser.add_argument('--only_use_wind_speed_loss', type=str2bool, default=False)
+    parser.add_argument('--use_custom_mask', type=str2bool, default=False)
     parser.add_argument('--use_deepspeed', type=str2bool, default=False)
 
     args = parser.parse_args()
@@ -231,7 +232,7 @@ if __name__ == "__main__":
                     lr_scheduler=lr_scheduler,
                     res_path=output_path,
                     device=device,
-                    writer=writer, logger=logger, start_epoch=start_epoch, rank=rank, visualize=args.visualize, only_use_wind_speed_loss=args.only_use_wind_speed_loss, use_deepspeed=args.use_deepspeed)
+                    writer=writer, logger=logger, start_epoch=start_epoch, rank=rank, visualize=args.visualize, only_use_wind_speed_loss=args.only_use_wind_speed_loss, use_custom_mask=args.use_custom_mask, use_deepspeed=args.use_deepspeed)
 
     if rank == 0:
         print('args:', args)
@@ -253,6 +254,7 @@ if __name__ == "__main__":
              device=device,
              res_path=output_path,
              visualize=args.visualize,
-             only_use_wind_speed_loss=args.only_use_wind_speed_loss)
+             only_use_wind_speed_loss=args.only_use_wind_speed_loss,
+             use_custom_mask=args.use_custom_mask)
 
 # CUDA_VISIBLE_DEVICES=0,1,2,3 nohup python -m torch.distributed.launch --nproc_per_node=4 --master_port=1234 finetune_lastLayer_ddp.py --dist True
