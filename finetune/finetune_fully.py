@@ -190,12 +190,15 @@ if __name__ == "__main__":
         )
         start_epoch = 1
         
-        # # TODO [not implemented]: 加载之前的检查点（如果需要）
-        # if args.load_pretrained:
-        #     _, client_sd = model.load_checkpoint(output_path, tag="train_57")
-        #     start_epoch = client_sd['epoch'] + 1
-        # else:
-        #     start_epoch = 1
+        if args.load_pretrained:
+            cpk = torch.load(os.path.join(output_path, "models/train_26.pth"), weights_only=False)
+            cpk['model'] = {"module."+k: v for k, v in cpk['model'].items()}
+            model.load_state_dict(cpk['model'])
+            # optimizer.load_state_dict(cpk['optimizer'])  # TODO：暂不加载optimizer状态，因为deepspeed的optimizer比较复杂
+            lr_scheduler.load_state_dict(cpk['lr_scheduler'])
+            start_epoch = cpk["epoch"]+1
+            del cpk
+            torch.cuda.empty_cache()
     else:
         optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters(
         )), lr=cfg.PG.TRAIN.LR, weight_decay=cfg.PG.TRAIN.WEIGHT_DECAY)
