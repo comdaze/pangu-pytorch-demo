@@ -73,12 +73,12 @@ def monitor_system(interval=5, duration=60):
 
 def get_wind_speed(output_surface, target_surface, output, target):
     # Wind Speed Loss
-    output_surface_U10 = output_surface[:, 2, :, :]  # [1, 721, 1440]
-    output_surface_V10 = output_surface[:, 3, :, :]  # [1, 721, 1440]
+    output_surface_U10 = output_surface[:, 1, :, :]  # [1, 721, 1440]
+    output_surface_V10 = output_surface[:, 2, :, :]  # [1, 721, 1440]
     output_surface_wind_speed = torch.sqrt(output_surface_U10**2 + output_surface_V10**2)  # [1, 721, 1440]
     
-    target_surface_U10 = target_surface[:, 2, :, :]  # [1, 721, 1440]
-    target_surface_V10 = target_surface[:, 3, :, :]  # [1, 721, 1440]
+    target_surface_U10 = target_surface[:, 1, :, :]  # [1, 721, 1440]
+    target_surface_V10 = target_surface[:, 2, :, :]  # [1, 721, 1440]
     target_surface_wind_speed = torch.sqrt(target_surface_U10**2 + target_surface_V10**2)  # [1, 721, 1440]
     
     output_U10 = output[:, 3, :, :, :]  # [1, 1, 13, 721, 1440]

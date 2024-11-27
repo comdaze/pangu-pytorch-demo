@@ -71,8 +71,9 @@ class ComprehensiveStats:
             
     def update(self, tensor, periods):
         # tensor shape: [batch, channels, height, width]
-        U10 = tensor[:, 2, :, :]
-        V10 = tensor[:, 3, :, :]
+        U10 = tensor[:, 1, :, :]
+        V10 = tensor[:, 2, :, :]
+        # print('U10:', U10.mean(), 'V10:', V10.mean())
         
         # 1. 基础统计
         self.sum += tensor.mean(dim=[0, 2, 3]).cpu()
@@ -243,7 +244,7 @@ if __name__ == "__main__":
     os.makedirs(output_dir, exist_ok=True)
     
     # 分析数据
-    stats = analyze_year_data(test_dataloader, 2017, output_dir)  # TODO: manully change year
+    stats = analyze_year_data(test_dataloader, 2023, output_dir)  # TODO: manully change year
     
     # 打印主要结果
     print("\nKey Statistics Summary:")
