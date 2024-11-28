@@ -107,6 +107,14 @@ upper_weights, surface_weights, upper_loss_weight, surface_loss_weight = aux_con
 
 test_loss = 0.0
 
+mask = None
+if use_custom_mask:
+    mask = aux_constants['custom_mask']
+    # 为每个张量添加合适的维度
+    mask_3d = mask[None, :, :]  # for 3D tensors
+    mask_4d = mask[None, None, :, :]  # for 4D tensors
+    valid_points = mask.sum()  # 用于计算平均值
+
 batch_id = 0
 # 每天00:00 12:00预报h小时候的天气（single frame output）
 # for id, data in tqdm(enumerate(test_dataloader, 0)):
@@ -141,34 +149,36 @@ for data in tqdm(test_dataloader):
     output, output_surface = torch.from_numpy(output).type(
         torch.float32), torch.from_numpy(output_surface).type(torch.float32)
     
-    # print('before use_custom_mask target:', target.shape, 'target_surface:', target_surface.shape, 'output:', output.shape, 'output_surface:', output_surface.shape)
-    if use_custom_mask:
-        target = target*aux_constants['custom_mask'][np.newaxis, :, :]
-        target_surface = target_surface*aux_constants['custom_mask'][np.newaxis, np.newaxis, :, :]
-        output = output*aux_constants['custom_mask'][np.newaxis, :, :]
-        output_surface = output_surface*aux_constants['custom_mask'][np.newaxis, :, :]
-    # print('after use_custom_mask target:', target.shape, 'target_surface:', target_surface.shape, 'output:', output.shape, 'output_surface:', output_surface.shape)
-
     output_surface_wind_speed, target_surface_wind_speed, output_wind_speed, target_wind_speed = get_wind_speed(output_surface.unsqueeze(0), target_surface, output.unsqueeze(0), target)
     
     # Noralize the gt to make the loss compariable
     target_normalized, target_surface_normalized = utils_data.normData(target, target_surface, aux_constants['weather_statistics_last'])
     output_normalized, output_surface_normalized = utils_data.normData(output, output_surface, aux_constants['weather_statistics_last'])
 
-
     if only_use_wind_speed_loss:
         output_surface_wind_speed_normalized, target_surface_wind_speed_normalized, output_wind_speed_normalized, target_wind_speed_normalized = get_wind_speed(output_surface_normalized, target_surface_normalized, output_normalized, target_normalized)
-        surface_wind_speed_loss = criterion(output_surface_wind_speed_normalized, target_surface_wind_speed_normalized)
-        wind_speed_loss = criterion(output_wind_speed_normalized, target_wind_speed_normalized)
-        loss = torch.mean(surface_wind_speed_loss) + torch.mean(wind_speed_loss)
+        if use_custom_mask:
+            surface_wind_speed_loss = (criterion(output_surface_wind_speed_normalized, target_surface_wind_speed_normalized) * mask_3d).sum() / valid_points
+            wind_speed_loss = (criterion(output_wind_speed_normalized, target_wind_speed_normalized) * mask_3d).sum() / valid_points
+            loss = surface_wind_speed_loss + wind_speed_loss
+        else:
+            surface_wind_speed_loss = criterion(output_surface_wind_speed_normalized, target_surface_wind_speed_normalized)
+            wind_speed_loss = criterion(output_wind_speed_normalized, target_wind_speed_normalized)
+            loss = torch.mean(surface_wind_speed_loss) + torch.mean(wind_speed_loss)
     else:
         # We use the MAE loss to train the model
         # Different weight can be applied for different fields if needed
         loss_surface = criterion(output_surface_normalized, target_surface_normalized)
-        weighted_surface_loss = torch.mean(loss_surface * surface_weights)
-
         loss_upper = criterion(output_normalized, target_normalized)
-        weighted_upper_loss = torch.mean(loss_upper * upper_weights)
+        
+        if use_custom_mask:
+            # 应用mask并计算有效区域的平均损失
+            weighted_surface_loss = (loss_surface * surface_weights * mask_4d).sum() / (valid_points * loss_surface.size(1))
+            weighted_upper_loss = (loss_upper * upper_weights * mask_3d).sum() / valid_points
+        else:
+            weighted_surface_loss = torch.mean(loss_surface * surface_weights)
+            weighted_upper_loss = torch.mean(loss_upper * upper_weights)
+            
         # The weight of surface loss is 0.25
         # loss = weighted_upper_loss + weighted_surface_loss * 0.25
         loss = weighted_upper_loss * upper_loss_weight + weighted_surface_loss * surface_loss_weight  # change loss weight
@@ -210,27 +220,25 @@ for data in tqdm(test_dataloader):
                                 var='v10',
                                 step=target_time, 
                                 path=png_path)
-
-    # RMSE for each variabl
-
+        
     rmse_upper_z[target_time] = score.weighted_rmse_torch_channels(
-        output[0], target[0]).numpy()
+        output[0], target[0], mask).numpy()
     rmse_upper_q[target_time] = score.weighted_rmse_torch_channels(
-        output[1], target[1]).numpy()
+        output[1], target[1], mask).numpy()
     rmse_upper_t[target_time] = score.weighted_rmse_torch_channels(
-        output[2], target[2]).numpy()
+        output[2], target[2], mask).numpy()
     rmse_upper_u[target_time] = score.weighted_rmse_torch_channels(
-        output[3], target[3]).numpy()
+        output[3], target[3], mask).numpy()
     rmse_upper_v[target_time] = score.weighted_rmse_torch_channels(
-        output[4], target[4]).numpy()
+        output[4], target[4], mask).numpy()
     rmse_upper_wind_speed[target_time] = score.weighted_rmse_torch_channels(
-        output_wind_speed, target_wind_speed).numpy()
+        output_wind_speed, target_wind_speed, mask).numpy()
     rmse_surface[target_time] = score.weighted_rmse_torch_channels(
-        output_surface, target_surface).numpy()
+        output_surface, target_surface, mask).numpy()
     rmse_surface_wind_speed[target_time] = score.weighted_rmse_torch_channels(
-        output_surface_wind_speed, target_surface_wind_speed).numpy()
+        output_surface_wind_speed, target_surface_wind_speed, mask).numpy()
 
-    # acc
+    # acc TODO: need to support mask
     surface_mean, _, upper_mean, _ = utils_data.weatherStatistics_output(filepath=os.path.join(cfg.PG_INPUT_PATH, 'aux_data'), device='cpu')
     output_anomaly = output - upper_mean.squeeze(0)
     target_anomaly = target - upper_mean.squeeze(0)

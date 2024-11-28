@@ -1,6 +1,7 @@
 import numpy as np
 # from utils.YParams import YParams
 import torch
+from typing import Optional
 
 
 def unlog_tp(x, eps=1E-5):
@@ -104,22 +105,62 @@ def latitude_weighting_factor_torch(j: torch.Tensor, num_lat: int, s: torch.Tens
     return num_lat * torch.cos(3.1416/180. * lat(j, num_lat))/s
 
 
-@torch.jit.script
-def weighted_rmse_torch_channels(pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-    # takes in arrays of size [n, c, h, w]  and returns latitude-weighted rmse for each chann
-    num_lat = pred.shape[-2]
-    # num_long = target.shape[2]
-    lat_t = torch.arange(start=0, end=num_lat, device=pred.device)
+# @torch.jit.script
+# def weighted_rmse_torch_channels(pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+#     # takes in arrays of size [n, c, h, w]  and returns latitude-weighted rmse for each chann
+#     num_lat = pred.shape[-2]
+#     # num_long = target.shape[2]
+#     lat_t = torch.arange(start=0, end=num_lat, device=pred.device)
 
+#     s = torch.sum(torch.cos(3.1416/180. * lat(lat_t, num_lat)))
+
+#     if pred.dim() == 3:
+#         weight = torch.reshape(latitude_weighting_factor_torch(
+#             lat_t, num_lat, s), (1, -1, 1))
+#     else:
+#         weight = torch.reshape(latitude_weighting_factor_torch(
+#             lat_t, num_lat, s), (1, 1, -1, 1))
+#     result = torch.sqrt(torch.mean(weight * (pred - target)**2., dim=(-1, -2)))
+#     return result
+
+@torch.jit.script
+def weighted_rmse_torch_channels(pred: torch.Tensor, target: torch.Tensor, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+    # takes in arrays of size [n, c, h, w] or [c, h, w] and returns latitude-weighted rmse for each channel
+    num_lat = pred.shape[-2]
+    lat_t = torch.arange(start=0, end=num_lat, device=pred.device)
     s = torch.sum(torch.cos(3.1416/180. * lat(lat_t, num_lat)))
 
+    # 计算纬度权重
     if pred.dim() == 3:
         weight = torch.reshape(latitude_weighting_factor_torch(
             lat_t, num_lat, s), (1, -1, 1))
     else:
         weight = torch.reshape(latitude_weighting_factor_torch(
             lat_t, num_lat, s), (1, 1, -1, 1))
-    result = torch.sqrt(torch.mean(weight * (pred - target)**2., dim=(-1, -2)))
+
+    if mask is not None:
+        # 确保mask在正确的设备上
+        mask = mask.to(pred.device)
+        
+        # 根据输入维度调整mask
+        if pred.dim() == 3:
+            mask = mask.unsqueeze(0)  # [1, h, w]
+        else:
+            mask = mask.unsqueeze(0).unsqueeze(0)  # [1, 1, h, w]
+
+        # 计算有效点的权重总和
+        valid_weights = (weight * mask).sum(dim=(-1, -2))
+        
+        # 计算带权重和mask的均方误差
+        squared_error = (pred - target)**2
+        weighted_masked_error = weight * mask * squared_error
+        
+        # 对有效区域求和并除以有效权重
+        result = torch.sqrt(weighted_masked_error.sum(dim=(-1, -2)) / valid_weights)
+    else:
+        # 原始的计算方式
+        result = torch.sqrt(torch.mean(weight * (pred - target)**2., dim=(-1, -2)))
+
     return result
 
 

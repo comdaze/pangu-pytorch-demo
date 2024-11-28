@@ -5,7 +5,7 @@
 # torchrun --nproc_per_node 8 --nnodes 1 finetune/lora_tune.py
 
 # deepspeed --num_gpus=8 models/pangu_model_deepspeed.py 
-deepspeed --num_gpus=8 finetune/finetune_fully.py --use_deepspeed True
+deepspeed --num_gpus=8 finetune/finetune_fully.py --use_deepspeed True --only_use_wind_speed_loss True --use_custom_mask True
 
 #  --num_workers 4
 #  --num_workers 8
@@ -14,4 +14,5 @@ deepspeed --num_gpus=8 finetune/finetune_fully.py --use_deepspeed True
 #  --visualize True
 #  --only_test True
 #  --only_use_wind_speed_loss True
+#  --use_custom_mask True
 #  --use_deepspeed True
