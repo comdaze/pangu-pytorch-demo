@@ -117,6 +117,15 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
         device=device)  # 'weather_statistics','weather_statistics_last','constant_maps','tele_indices','variable_weights'
     upper_weights, surface_weights, upper_loss_weight, surface_loss_weight = aux_constants['variable_weights']
 
+    mask = None
+    if use_custom_mask:
+        mask = aux_constants['custom_mask']
+        mask_bool = mask == 0  # 创建布尔mask
+        # 为每个张量添加合适的维度
+        mask_3d = mask[None, :, :]  # for 3D tensors
+        mask_4d = mask[None, None, :, :]  # for 4D tensors
+        valid_points = mask.sum()  # 用于计算平均值
+
     # Train a single Pangu-Weather model
     for i in range(start_epoch, epochs + 1):
         model.train()
@@ -161,40 +170,50 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
             
             # print(f"output.shape: {output.shape}, output_surface.shape: {output_surface.shape}")
             
-            # print('before use_custom_mask target:', target.shape, 'target_surface:', target_surface.shape, 'output:', output.shape, 'output_surface:', output_surface.shape)
-            # print('before use_custom_mask target:', target.dtype, 'target_surface:', target_surface.dtype, 'output:', output.dtype, 'output_surface:', output_surface.dtype)
-            if use_custom_mask:
-                # custom_mask = aux_constants['custom_mask'].detach()
-                # # print(aux_constants['custom_mask'].device, aux_constants['custom_mask'].dtype)
-                # # # 检查是否有NaN或无穷大
-                # # print("Has NaN:", torch.isnan(custom_mask).any())
-                # # print("Has Inf:", torch.isinf(custom_mask).any())
-                # target = target*custom_mask[None, :, :]
-                # target_surface = target_surface*custom_mask[None, None, :, :]
-                # output = output*custom_mask[None, :, :]
-                # output_surface = output_surface*custom_mask[None, None, :, :]
-                # 解决：RuntimeError: linalg.vector_norm: Expected a floating point or complex tensor as input. Got Long
-                custom_mask = aux_constants['custom_mask'] == 0
-                target = target.masked_fill(custom_mask[None, :, :], 0)
-                target_surface = target_surface.masked_fill(custom_mask[None, None, :, :], 0)
-                output = output.masked_fill(custom_mask[None, :, :], 0)
-                output_surface = output_surface.masked_fill(custom_mask[None, None, :, :], 0)
-            # print('after use_custom_mask target:', target.shape, 'target_surface:', target_surface.shape, 'output:', output.shape, 'output_surface:', output_surface.shape)
-            # print('after use_custom_mask target:', target.dtype, 'target_surface:', target_surface.dtype, 'output:', output.dtype, 'output_surface:', output_surface.dtype)
+            # # print('before use_custom_mask target:', target.shape, 'target_surface:', target_surface.shape, 'output:', output.shape, 'output_surface:', output_surface.shape)
+            # # print('before use_custom_mask target:', target.dtype, 'target_surface:', target_surface.dtype, 'output:', output.dtype, 'output_surface:', output_surface.dtype)
+            # if use_custom_mask:
+            #     # custom_mask = aux_constants['custom_mask'].detach()
+            #     # # print(aux_constants['custom_mask'].device, aux_constants['custom_mask'].dtype)
+            #     # # # 检查是否有NaN或无穷大
+            #     # # print("Has NaN:", torch.isnan(custom_mask).any())
+            #     # # print("Has Inf:", torch.isinf(custom_mask).any())
+            #     # target = target*custom_mask[None, :, :]
+            #     # target_surface = target_surface*custom_mask[None, None, :, :]
+            #     # output = output*custom_mask[None, :, :]
+            #     # output_surface = output_surface*custom_mask[None, None, :, :]
+            #     # 解决：RuntimeError: linalg.vector_norm: Expected a floating point or complex tensor as input. Got Long
+            #     custom_mask = aux_constants['custom_mask'] == 0
+            #     target = target.masked_fill(custom_mask[None, :, :], 0)
+            #     target_surface = target_surface.masked_fill(custom_mask[None, None, :, :], 0)
+            #     output = output.masked_fill(custom_mask[None, :, :], 0)
+            #     output_surface = output_surface.masked_fill(custom_mask[None, None, :, :], 0)
+            # # print('after use_custom_mask target:', target.shape, 'target_surface:', target_surface.shape, 'output:', output.shape, 'output_surface:', output_surface.shape)
+            # # print('after use_custom_mask target:', target.dtype, 'target_surface:', target_surface.dtype, 'output:', output.dtype, 'output_surface:', output_surface.dtype)
 
             if only_use_wind_speed_loss:
                 output_surface_wind_speed, target_surface_wind_speed, output_wind_speed, target_wind_speed = get_wind_speed(output_surface, target_surface, output, target)
                 surface_wind_speed_loss = criterion(output_surface_wind_speed, target_surface_wind_speed)
                 wind_speed_loss = criterion(output_wind_speed, target_wind_speed)
-                loss = torch.mean(surface_wind_speed_loss) + torch.mean(wind_speed_loss)
+                if use_custom_mask:
+                    surface_wind_speed_loss = (surface_wind_speed_loss * (~mask_bool)).sum() / valid_points
+                    wind_speed_loss = (wind_speed_loss * (~mask_bool)).sum() / valid_points
+                    loss = surface_wind_speed_loss + wind_speed_loss
+                else:
+                    loss = torch.mean(surface_wind_speed_loss) + torch.mean(wind_speed_loss)
             else:
                 # We use the MAE loss to train the model
                 # Different weight can be applied for different fields if needed
                 loss_surface = criterion(output_surface, target_surface)
-                weighted_surface_loss = torch.mean(loss_surface * surface_weights)
-
                 loss_upper = criterion(output, target)
-                weighted_upper_loss = torch.mean(loss_upper * upper_weights)
+                
+                if use_custom_mask:
+                    # 应用mask和权重，并只对有效区域求平均
+                    weighted_surface_loss = (loss_surface * surface_weights * (~mask_bool)[None, None, :, :]).sum() / valid_points
+                    weighted_upper_loss = (loss_upper * upper_weights * (~mask_bool)[None, :, :]).sum() / valid_points
+                else:
+                    weighted_surface_loss = torch.mean(loss_surface * surface_weights)
+                    weighted_upper_loss = torch.mean(loss_upper * upper_weights)
                 # The weight of surface loss is 0.25
                 # loss = weighted_upper_loss + weighted_surface_loss * 0.25
                 loss = weighted_upper_loss * upper_loss_weight + weighted_surface_loss * surface_loss_weight  # change loss weight
@@ -275,28 +294,30 @@ def train(model, train_loader, val_loader, optimizer, lr_scheduler, res_path, de
                         target_val, target_surface_val = utils_data.normData(target_val, target_surface_val,
                                                                              aux_constants['weather_statistics_last'])
 
-                        # print('before use_custom_mask target_val:', target_val.shape, 'target_surface_val:', target_surface_val.shape, 'output_val:', output_val.shape, 'output_surface_val:', output_surface_val.shape)
-                        if use_custom_mask:
-                            target_val = target_val*aux_constants['custom_mask'][np.newaxis, :, :]
-                            target_surface_val = target_surface_val*aux_constants['custom_mask'][np.newaxis, np.newaxis, :, :]
-                            output_val = output_val*aux_constants['custom_mask'][np.newaxis, :, :]
-                            output_surface_val = output_surface_val*aux_constants['custom_mask'][np.newaxis, :, :]
-                        # print('after use_custom_mask target_val:', target_val.shape, 'target_surface_val:', target_surface_val.shape, 'output_val:', output_val.shape, 'output_surface_val:', output_surface_val.shape)
-                        
                         if only_use_wind_speed_loss:
                             output_surface_wind_speed, target_surface_wind_speed, output_wind_speed, target_wind_speed = get_wind_speed(output_surface_val, target_surface_val, output_val, target_val)
-                            surface_wind_speed_loss = criterion(output_surface_wind_speed, target_surface_wind_speed)
-                            wind_speed_loss = criterion(output_wind_speed, target_wind_speed)
-                            loss = torch.mean(surface_wind_speed_loss) + torch.mean(wind_speed_loss)
+                            if use_custom_mask:
+                                surface_wind_speed_loss = (criterion(output_surface_wind_speed, target_surface_wind_speed) * mask_3d).sum() / valid_points
+                                wind_speed_loss = (criterion(output_wind_speed, target_wind_speed) * mask_3d).sum() / valid_points
+                                loss = surface_wind_speed_loss + wind_speed_loss
+                            else:
+                                surface_wind_speed_loss = criterion(output_surface_wind_speed, target_surface_wind_speed)
+                                wind_speed_loss = criterion(output_wind_speed, target_wind_speed)
+                                loss = torch.mean(surface_wind_speed_loss) + torch.mean(wind_speed_loss)
                         else:
                             val_loss_surface = criterion(
                                 output_surface_val, target_surface_val)
-                            weighted_val_loss_surface = torch.mean(
-                                val_loss_surface * surface_weights)
-
                             val_loss_upper = criterion(output_val, target_val)
-                            weighted_val_loss_upper = torch.mean(
-                                val_loss_upper * upper_weights)
+                            
+                            if use_custom_mask:
+                                # 应用mask并计算有效区域的平均损失
+                                weighted_surface_loss = (val_loss_surface * surface_weights * mask_4d).sum() / (valid_points * val_loss_surface.size(1))
+                                weighted_upper_loss = (val_loss_upper * upper_weights * mask_3d).sum() / valid_points
+                            else:
+                                weighted_val_loss_surface = torch.mean(
+                                    val_loss_surface * surface_weights)
+                                weighted_val_loss_upper = torch.mean(
+                                    val_loss_upper * upper_weights)
 
                             # loss = weighted_val_loss_upper + weighted_val_loss_surface * 0.25
                             loss = weighted_val_loss_upper * upper_loss_weight + weighted_val_loss_surface * surface_loss_weight  # change loss weight
@@ -386,6 +407,14 @@ def test(test_loader, model, device, res_path, visualize=False, only_use_wind_sp
     upper_weights, surface_weights, upper_loss_weight, surface_loss_weight = aux_constants['variable_weights']
     test_loss = 0.0
     
+    mask = None
+    if use_custom_mask:
+        mask = aux_constants['custom_mask']
+        # 为每个张量添加合适的维度
+        mask_3d = mask[None, :, :]  # for 3D tensors
+        mask_4d = mask[None, None, :, :]  # for 4D tensors
+        valid_points = mask.sum()  # 用于计算平均值
+    
     batch_id = 0
     # for id, data in enumerate(test_loader, 0):
     for data in tqdm(test_loader, desc='Testing'):
@@ -406,28 +435,27 @@ def test(test_loader, model, device, res_path, visualize=False, only_use_wind_sp
         target_test_normalized, target_surface_test_normalized = utils_data.normData(target_test, target_surface_test,
                                                             aux_constants['weather_statistics_last'])
         
-        # print('before use_custom_mask target_test_normalized:', target_test_normalized.shape, 'target_surface_test_normalized:', target_surface_test_normalized.shape, 'output_test:', output_test.shape, 'output_surface_test:', output_surface_test.shape)
-        if use_custom_mask:
-            target_test_normalized = target_test_normalized*aux_constants['custom_mask'][np.newaxis, :, :]
-            target_surface_test_normalized = target_surface_test_normalized*aux_constants['custom_mask'][np.newaxis, np.newaxis, :, :]
-            output_test = output_test*aux_constants['custom_mask'][np.newaxis, :, :]
-            output_surface_test = output_surface_test*aux_constants['custom_mask'][np.newaxis, :, :]
-        # print('after use_custom_mask target_test_normalized:', target_test_normalized.shape, 'target_surface_test_normalized:', target_surface_test_normalized.shape, 'output_test:', output_test.shape, 'output_surface_test:', output_surface_test.shape)
-        
         if only_use_wind_speed_loss:
             output_surface_wind_speed, target_surface_wind_speed, output_wind_speed, target_wind_speed = get_wind_speed(output_surface_test, target_surface_test_normalized, output_test, target_test_normalized)
-            surface_wind_speed_loss = criterion(output_surface_wind_speed, target_surface_wind_speed)
-            wind_speed_loss = criterion(output_wind_speed, target_wind_speed)
-            loss = torch.mean(surface_wind_speed_loss) + torch.mean(wind_speed_loss)
+            if use_custom_mask:
+                surface_wind_speed_loss = (criterion(output_surface_wind_speed, target_surface_wind_speed) * mask_3d).sum() / valid_points
+                wind_speed_loss = (criterion(output_wind_speed, target_wind_speed) * mask_3d).sum() / valid_points
+                loss = surface_wind_speed_loss + wind_speed_loss
+            else:
+                surface_wind_speed_loss = criterion(output_surface_wind_speed, target_surface_wind_speed)
+                wind_speed_loss = criterion(output_wind_speed, target_wind_speed)
+                loss = torch.mean(surface_wind_speed_loss) + torch.mean(wind_speed_loss)
         else:
-            test_loss_surface = criterion(
-                output_surface_test, target_surface_test_normalized)
-            weighted_test_loss_surface = torch.mean(
-                test_loss_surface * surface_weights)
-
+            test_loss_surface = criterion(output_surface_test, target_surface_test_normalized)
             test_loss_upper = criterion(output_test, target_test_normalized)
-            weighted_test_loss_upper = torch.mean(
-                test_loss_upper * upper_weights)
+            
+            if use_custom_mask:
+                # 应用mask并计算有效区域的平均损失
+                weighted_surface_loss = (test_loss_surface * surface_weights * mask_4d).sum() / (valid_points * test_loss_surface.size(1))
+                weighted_upper_loss = (test_loss_upper * upper_weights * mask_3d).sum() / valid_points
+            else:
+                weighted_test_loss_surface = torch.mean(test_loss_surface * surface_weights)
+                weighted_test_loss_upper = torch.mean(test_loss_upper * upper_weights)
 
             # loss = weighted_test_loss_upper + weighted_test_loss_surface * 0.25
             loss = weighted_test_loss_upper * upper_loss_weight + weighted_test_loss_surface * surface_loss_weight  # change loss weight
@@ -482,24 +510,24 @@ def test(test_loader, model, device, res_path, visualize=False, only_use_wind_sp
         # print(output_surface_wind_speed.shape, target_surface_wind_speed.shape, output_wind_speed.shape, target_wind_speed.shape)
 
         rmse_upper_z[target_time] = score.weighted_rmse_torch_channels(output_test[0],
-                                                                       target_test[0]).detach().cpu().numpy()
+                                                                       target_test[0], mask).detach().cpu().numpy()
         rmse_upper_q[target_time] = score.weighted_rmse_torch_channels(output_test[1],
-                                                                       target_test[1]).detach().cpu().numpy()
+                                                                       target_test[1], mask).detach().cpu().numpy()
         rmse_upper_t[target_time] = score.weighted_rmse_torch_channels(output_test[2],
-                                                                       target_test[2]).detach().cpu().numpy()
+                                                                       target_test[2], mask).detach().cpu().numpy()
         rmse_upper_u[target_time] = score.weighted_rmse_torch_channels(output_test[3],
-                                                                       target_test[3]).detach().cpu().numpy()
+                                                                       target_test[3], mask).detach().cpu().numpy()
         rmse_upper_v[target_time] = score.weighted_rmse_torch_channels(output_test[4],
-                                                                       target_test[4]).detach().cpu().numpy()
+                                                                       target_test[4], mask).detach().cpu().numpy()
         rmse_upper_wind_speed[target_time] = score.weighted_rmse_torch_channels(output_wind_speed,
-                                                                       target_wind_speed).detach().cpu().numpy()
+                                                                       target_wind_speed, mask).detach().cpu().numpy()
 
         rmse_surface[target_time] = score.weighted_rmse_torch_channels(output_surface_test,
-                                                                       target_surface_test).detach().cpu().numpy()
+                                                                       target_surface_test, mask).detach().cpu().numpy()
         rmse_surface_wind_speed[target_time] = score.weighted_rmse_torch_channels(output_surface_wind_speed,
-                                                                       target_surface_wind_speed).detach().cpu().numpy()
+                                                                       target_surface_wind_speed, mask).detach().cpu().numpy()
 
-        # acc
+        # acc TODO: need to support mask
         surface_mean, _, upper_mean, _ = aux_constants['weather_statistics_last']
         output_test_anomaly = output_test - upper_mean.squeeze(0)
         output_surface_test_anomaly = output_surface_test - \
