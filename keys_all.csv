@@ -222,4 +222,3 @@ _output_layer.conv.weight,b1.a142.weight
 _output_layer.conv.bias,b1.a142.bias
 _output_layer.conv_surface.weight,b1.a143.weight
 _output_layer.conv_surface.bias,b1.a143.bias
-,
