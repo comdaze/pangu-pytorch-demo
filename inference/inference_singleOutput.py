@@ -27,7 +27,7 @@ from models.pangu_sample import get_wind_speed
 
 visualize = False  # True/False
 only_use_wind_speed_loss = True  # True/False
-use_custom_mask = True  # True/False
+use_custom_mask = False  # True/False
 
 # The directory of your input and output data
 PATH = cfg.PG_INPUT_PATH
@@ -121,18 +121,25 @@ batch_id = 0
 for data in tqdm(test_dataloader):
     # Store initial input for different models
     input, input_surface, target, target_surface, periods = data
+    print('periods:', periods)
+    print('input:', input)
+    print('input_surface:', input_surface)
+    print('target:', target)
+    print('target_surface:', target_surface)
 
     # Required input to the pretrained model: upper ndarray(n, Z, W, H) and surface(n, W, H)
     input_24, input_surface_24 = input.numpy().astype(np.float32).squeeze(), input_surface.numpy(
     ).astype(np.float32).squeeze()  # input torch.Size([1, 5, 13, 721, 1440])
 
-    spaces = h // 24  # TODO: may change
+    # spaces = h // 24  # TODO: may change
+    freq = int(cfg.PG.TEST.FREQUENCY[:-1])
+    spaces = h // freq
     # start time
     input_time = datetime.strptime(periods[0][batch_id], '%Y%m%d%H')
 
     # multi-step prediction for single output
     for space in range(spaces):
-        current_time = input_time + timedelta(hours=24*(space+1))
+        current_time = input_time + timedelta(hours=freq*(space+1))
         print("predicting on....", current_time)
 
         # Call the model pretrained for 24 hours forecast
@@ -192,6 +199,13 @@ for data in tqdm(test_dataloader):
     # target_surface_wind_speed = target_surface_wind_speed.squeeze()
     output_wind_speed = output_wind_speed.squeeze()
     target_wind_speed = target_wind_speed.squeeze()
+    
+    print('target_time:', target_time)
+    print(output_surface_wind_speed.shape, target_surface_wind_speed.shape, output_wind_speed.shape, target_wind_speed.shape)
+    print('output_surface_wind_speed:', output_surface_wind_speed)
+    print('target_surface_wind_speed:', target_surface_wind_speed)
+    print('output_wind_speed:', output_wind_speed)
+    print('target_wind_speed:', target_wind_speed)
     
     # mslp, u,v,t2m 3: visualize t2m
     if visualize:
