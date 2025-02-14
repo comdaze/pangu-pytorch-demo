@@ -425,6 +425,19 @@ def test(test_loader, model, device, res_path, visualize=False, only_use_wind_sp
             input_test.to(device), input_surface_test.to(
                 device), target_test.to(device), target_surface_test.to(device)
         model.eval()
+        
+        # print('periods_test:', periods_test)
+        # print('input_test:', input_test)
+        # print('input_surface_test:', input_surface_test)
+        # print('target_test:', target_test)
+        # print('target_surface_test:', target_surface_test)
+        
+        # print("aux_constants['weather_statistics'][0]:", aux_constants['weather_statistics'][0].shape, aux_constants['weather_statistics'][0])
+        # print("aux_constants['weather_statistics'][1]:", aux_constants['weather_statistics'][1].shape, aux_constants['weather_statistics'][1])
+        # print("aux_constants['weather_statistics'][2]:", aux_constants['weather_statistics'][2].shape, aux_constants['weather_statistics'][2])
+        # print("aux_constants['weather_statistics'][3]:", aux_constants['weather_statistics'][3].shape, aux_constants['weather_statistics'][3])
+        # print("aux_constants['constant_maps']:", aux_constants['constant_maps'].shape, aux_constants['constant_maps'])
+        # print("aux_constants['const_h']:", aux_constants['const_h'].shape, aux_constants['const_h'])
 
         # Inference
         output_test, output_surface_test = model(input_test, input_surface_test,
@@ -451,8 +464,8 @@ def test(test_loader, model, device, res_path, visualize=False, only_use_wind_sp
             
             if use_custom_mask:
                 # 应用mask并计算有效区域的平均损失
-                weighted_surface_loss = (test_loss_surface * surface_weights * mask_4d).sum() / (valid_points * test_loss_surface.size(1))
-                weighted_upper_loss = (test_loss_upper * upper_weights * mask_3d).sum() / valid_points
+                weighted_test_loss_surface = (test_loss_surface * surface_weights * mask_4d).sum() / (valid_points * test_loss_surface.size(1))
+                weighted_test_loss_upper = (test_loss_upper * upper_weights * mask_3d).sum() / valid_points
             else:
                 weighted_test_loss_surface = torch.mean(test_loss_surface * surface_weights)
                 weighted_test_loss_upper = torch.mean(test_loss_upper * upper_weights)
@@ -507,7 +520,13 @@ def test(test_loader, model, device, res_path, visualize=False, only_use_wind_sp
         # target_surface_wind_speed = target_surface_wind_speed.squeeze()
         output_wind_speed = output_wind_speed.squeeze()
         target_wind_speed = target_wind_speed.squeeze()
+        
+        # print('target_time:', target_time)
         # print(output_surface_wind_speed.shape, target_surface_wind_speed.shape, output_wind_speed.shape, target_wind_speed.shape)
+        # print('output_surface_wind_speed:', output_surface_wind_speed)
+        # print('target_surface_wind_speed:', target_surface_wind_speed)
+        # print('output_wind_speed:', output_wind_speed)
+        # print('target_wind_speed:', target_wind_speed)
 
         rmse_upper_z[target_time] = score.weighted_rmse_torch_channels(output_test[0],
                                                                        target_test[0], mask).detach().cpu().numpy()

@@ -7,6 +7,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
 sys.path.append(parent_dir)
 
+import numpy as np
 import pandas as pd
 import torch
 
@@ -22,17 +23,92 @@ lookUpTable = os.path.join(PATH, 'keys_all.csv')
 lookUpTable = pd.read_csv(lookUpTable)
 # Load onnx file of pretrained pangu model
 # onnx_model_path = cfg.PG.BENCHMARK.PRETRAIN_24
+# horizon = 24
 # onnx_model_path = cfg.PG.BENCHMARK.PRETRAIN_6
+# horizon = 6
 # onnx_model_path = cfg.PG.BENCHMARK.PRETRAIN_3
+# horizon = 3
 onnx_model_path = cfg.PG.BENCHMARK.PRETRAIN_1
-model_24 = onnx.load(onnx_model_path)
+horizon = 1
 
-graph = model_24.graph
+onnx_model = onnx.load(onnx_model_path)
+
+graph = onnx_model.graph
 INTIALIZERS = graph.initializer
 onnx_weights = {}
 for initializer in INTIALIZERS:
      W = np_helper.to_array(initializer)
      onnx_weights[initializer.name] = W
+print('onnx_weights:', onnx_weights.keys())
+
+os.makedirs(os.path.join(PATH, 'aux_data'), exist_ok=True)
+for node in graph.node:
+    # print(f"Node name: {node.name}")
+    # print(f"Node inputs: {node.input}")
+    # print(f"Node outputs: {node.output}")
+    # for attr in node.attribute:
+        # print(f"Attribute name: {attr.name}")
+        # if attr.type == onnx.AttributeProto.FLOAT:
+        #     print(f"Attribute value (float): {attr.f}")
+        # elif attr.type == onnx.AttributeProto.INTS:
+        #     print(f"Attribute value (ints): {attr.ints}")
+        # elif attr.type == onnx.AttributeProto.TENSOR:
+        #     tensor = onnx.numpy_helper.to_array(attr.t)
+        #     print(f"Attribute value (tensor): {tensor}")
+    if node.name == '/b1/Constant_11':
+        for attr in node.attribute:
+            if attr.name == 'value':
+                surface_mean = onnx.numpy_helper.to_array(attr.t)
+                np.save(os.path.join(PATH, 'aux_data/surface_mean.npy'), surface_mean)
+    elif node.name == '/b1/Constant_12':
+        for attr in node.attribute:
+            if attr.name == 'value':
+                surface_std = onnx.numpy_helper.to_array(attr.t)
+                np.save(os.path.join(PATH, 'aux_data/surface_std.npy'), surface_std)
+    elif node.name == '/b1/Constant_9':
+        for attr in node.attribute:
+            if attr.name == 'value':
+                upper_mean = onnx.numpy_helper.to_array(attr.t)
+                np.save(os.path.join(PATH, 'aux_data/upper_mean.npy'), upper_mean)
+    elif node.name == '/b1/Constant_10':
+        for attr in node.attribute:
+            if attr.name == 'value':
+                upper_std = onnx.numpy_helper.to_array(attr.t)
+                np.save(os.path.join(PATH, 'aux_data/upper_std.npy'), upper_std)
+    elif node.name == '/b1/Constant_44':
+        for attr in node.attribute:
+            if attr.name == 'value':
+                maps = onnx.numpy_helper.to_array(attr.t)
+                np.save(os.path.join(PATH, f'aux_data/constantMask{horizon}.npy'), maps)
+    elif node.name == '/b1/Constant_17':
+        for attr in node.attribute:
+            if attr.name == 'value':
+                const_h = onnx.numpy_helper.to_array(attr.t)
+                np.save(os.path.join(PATH, 'aux_data/Constant_17_output_0.npy'), const_h)
+
+def compare_npy(file1, file2):
+    # 加载 .npy 文件
+    array1 = np.load(file1)
+    array2 = np.load(file2)
+
+    # 逐元素比较
+    if np.array_equal(array1, array2):
+        print("两个 .npy 文件完全一致")
+        return True
+    else:
+        print("两个 .npy 文件不一致")
+        print(array1.shape, array2.shape)
+        print('array1:', array1)
+        print('array2:', array2)
+        return False
+
+compare_npy(os.path.join(PATH, 'aux_data/surface_mean.npy'), '/opt/dlami/nvme/aux_data/surface_mean.npy')
+compare_npy(os.path.join(PATH, 'aux_data/surface_std.npy'), '/opt/dlami/nvme/aux_data/surface_std.npy')
+compare_npy(os.path.join(PATH, 'aux_data/upper_mean.npy'), '/opt/dlami/nvme/aux_data/upper_mean.npy')
+compare_npy(os.path.join(PATH, 'aux_data/upper_std.npy'), '/opt/dlami/nvme/aux_data/upper_std.npy')
+compare_npy(os.path.join(PATH, 'aux_data/constantMask.npy'), '/opt/dlami/nvme/aux_data/constantMaks3.npy')
+compare_npy(os.path.join(PATH, 'aux_data/Constant_17_output_0.npy'), '/opt/dlami/nvme/aux_data/Constant_17_output_0.npy')
+
 # Pangu model in pytorch
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model = PanguModel(device=device).to(device)
