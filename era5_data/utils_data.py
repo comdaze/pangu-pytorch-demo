@@ -458,8 +458,9 @@ def LoadConstantMask(filepath='/home/code/Pangu-Weather/constant_masks', device=
 
 
 def LoadConstantMask3(filepath="/home/ec2-user/pangu-pytorch/aux_data", device="cpu"):
-    mask = np.load(os.path.join(filepath, "constantMaks3.npy")
-                   ).astype(np.float32)
+    # mask = np.load(os.path.join(filepath, "constantMaks3.npy")
+    #                ).astype(np.float32)
+    mask = np.load(os.path.join(filepath, f"constantMask{cfg.PG.HORIZON}.npy")).astype(np.float32)
     mask = torch.from_numpy(mask)
     return mask.to(device)
 
