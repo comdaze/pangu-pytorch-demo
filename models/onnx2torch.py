@@ -28,7 +28,7 @@ onnx_model_path = cfg.PG.BENCHMARK.PRETRAIN_1
 model_24 = onnx.load(onnx_model_path)
 
 graph = model_24.graph
-INTIALIZERS = model_24.graph.initializer
+INTIALIZERS = graph.initializer
 onnx_weights = {}
 for initializer in INTIALIZERS:
      W = np_helper.to_array(initializer)
