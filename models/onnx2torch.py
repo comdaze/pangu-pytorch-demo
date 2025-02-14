@@ -86,4 +86,4 @@ print('count:', count)
 # output_path = '/opt/dlami/nvme/'
 # torch.save(model,os.path.join(output_path,"onnx2torch.pth"))
 torch.save({'model': model.state_dict()},
-           onnx_model_path[:-5]+'_torch2.pth')
+           onnx_model_path[:-5]+'_torch.pth')
