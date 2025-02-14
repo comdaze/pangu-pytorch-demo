@@ -106,7 +106,7 @@ compare_npy(os.path.join(PATH, 'aux_data/surface_mean.npy'), '/opt/dlami/nvme/au
 compare_npy(os.path.join(PATH, 'aux_data/surface_std.npy'), '/opt/dlami/nvme/aux_data/surface_std.npy')
 compare_npy(os.path.join(PATH, 'aux_data/upper_mean.npy'), '/opt/dlami/nvme/aux_data/upper_mean.npy')
 compare_npy(os.path.join(PATH, 'aux_data/upper_std.npy'), '/opt/dlami/nvme/aux_data/upper_std.npy')
-compare_npy(os.path.join(PATH, 'aux_data/constantMask.npy'), '/opt/dlami/nvme/aux_data/constantMaks3.npy')
+compare_npy(os.path.join(PATH, f'aux_data/constantMask{horizon}.npy'), '/opt/dlami/nvme/aux_data/constantMaks3.npy')
 compare_npy(os.path.join(PATH, 'aux_data/Constant_17_output_0.npy'), '/opt/dlami/nvme/aux_data/Constant_17_output_0.npy')
 
 # Pangu model in pytorch
