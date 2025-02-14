@@ -121,11 +121,11 @@ batch_id = 0
 for data in tqdm(test_dataloader):
     # Store initial input for different models
     input, input_surface, target, target_surface, periods = data
-    print('periods:', periods)
-    print('input:', input)
-    print('input_surface:', input_surface)
-    print('target:', target)
-    print('target_surface:', target_surface)
+    # print('periods:', periods)
+    # print('input:', input)
+    # print('input_surface:', input_surface)
+    # print('target:', target)
+    # print('target_surface:', target_surface)
 
     # Required input to the pretrained model: upper ndarray(n, Z, W, H) and surface(n, W, H)
     input_24, input_surface_24 = input.numpy().astype(np.float32).squeeze(), input_surface.numpy(
@@ -200,12 +200,12 @@ for data in tqdm(test_dataloader):
     output_wind_speed = output_wind_speed.squeeze()
     target_wind_speed = target_wind_speed.squeeze()
     
-    print('target_time:', target_time)
-    print(output_surface_wind_speed.shape, target_surface_wind_speed.shape, output_wind_speed.shape, target_wind_speed.shape)
-    print('output_surface_wind_speed:', output_surface_wind_speed)
-    print('target_surface_wind_speed:', target_surface_wind_speed)
-    print('output_wind_speed:', output_wind_speed)
-    print('target_wind_speed:', target_wind_speed)
+    # print('target_time:', target_time)
+    # print(output_surface_wind_speed.shape, target_surface_wind_speed.shape, output_wind_speed.shape, target_wind_speed.shape)
+    # print('output_surface_wind_speed:', output_surface_wind_speed)
+    # print('target_surface_wind_speed:', target_surface_wind_speed)
+    # print('output_wind_speed:', output_wind_speed)
+    # print('target_wind_speed:', target_wind_speed)
     
     # mslp, u,v,t2m 3: visualize t2m
     if visualize:
