@@ -167,8 +167,8 @@ s3_prefix = "nsf-ncar-era5"
 
 pressure_levels = [1000, 925, 850, 700, 600,
                    500, 400, 300, 250, 200, 150, 100, 50]
-startDate = '20150101'
-endDate = '20240531'
+startDate = '20240601'
+endDate = '20241231'
 select_dates = list(pd.date_range(start=startDate, end=endDate, freq='1D'))
 select_dates = [date.strftime('%Y%m%d') for date in select_dates]
 # select_months = set([select_date[:6] for select_date in select_dates])
