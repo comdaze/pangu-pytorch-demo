@@ -9,8 +9,8 @@
 # pip install s5cmd
 # s5cmd cp s3://datalab/nsf-ncar-era5/aux_data/* /opt/dlami/nvme/aux_data/
 # s5cmd cp s3://datalab/nsf-ncar-era5/pretrained_model/* /opt/dlami/nvme/pretrained_model/
-# s5cmd cp s3://datalab/nsf-ncar-era5/surface/surface_202*.pt /opt/dlami/nvme/surface/
-# s5cmd cp s3://datalab/nsf-ncar-era5/upper/upper_202*.pt /opt/dlami/nvme/upper/
+# s5cmd cp s3://datalab/nsf-ncar-era5/surface/surface_*.pt /opt/dlami/nvme/surface/
+# s5cmd cp s3://datalab/nsf-ncar-era5/upper/upper_*.pt /opt/dlami/nvme/upper/
 
 # torchrun --nproc_per_node 1 --nnodes 1 finetune/finetune_fully.py
 # torchrun --nproc_per_node 1 --nnodes 1 finetune/lora_tune.py
