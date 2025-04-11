@@ -18,8 +18,6 @@
 # torchrun --nproc_per_node 8 --nnodes 1 finetune/finetune_fully.py
 # torchrun --nproc_per_node 8 --nnodes 1 finetune/lora_tune.py
 
-torchrun --nproc_per_node 8 --nnodes 1 finetune/finetune_fully.py --use_deepspeed True --only_use_wind_speed_loss True --use_custom_mask True
-
 # deepspeed --num_gpus=8 models/pangu_model_deepspeed.py 
 # deepspeed --num_gpus=8 finetune/finetune_fully.py --use_deepspeed True --only_use_wind_speed_loss True --use_custom_mask True
 
@@ -32,3 +30,6 @@ torchrun --nproc_per_node 8 --nnodes 1 finetune/finetune_fully.py --use_deepspee
 #  --only_use_wind_speed_loss True
 #  --use_custom_mask True
 #  --use_deepspeed True
+
+
+torchrun --nproc_per_node 8 --nnodes 1 finetune/finetune_fully.py
