@@ -207,7 +207,7 @@ for data in tqdm(test_dataloader):
     input, input_surface, target, target_surface, periods = data
     # start time
     input_time = datetime.strptime(periods[0][batch_id], '%Y%m%d%H')
-    print(f"input_time: {input_time}")
+    # print(f"input_time: {input_time}")
     save_dir = os.path.join(output_data_dir, 'predictions', periods[0][batch_id])
     
     prediction_files = inference_25_hours(input_time, input, input_surface, save_dir)
