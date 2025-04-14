@@ -65,7 +65,7 @@ __C.PG.VAL.START_TIME = '20230101 00:00:00'
 __C.PG.VAL.END_TIME = '20240101 00:00:00'
 __C.PG.VAL.FREQUENCY = '24h'  # default: 12h (HORIZON=24)
 __C.PG.VAL.BATCH_SIZE = 1  # only support 1
-__C.PG.VAL.INTERVAL = 10  # default: 1
+__C.PG.VAL.INTERVAL = 1  # default: 1
 
 __C.PG.TEST = edict()
 __C.PG.TEST.START_TIME = '20240101 00:00:00'
