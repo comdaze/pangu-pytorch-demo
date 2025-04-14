@@ -27,7 +27,7 @@ from models.pangu_sample import get_wind_speed
 
 visualize = False  # True/False
 only_use_wind_speed_loss = True  # True/False
-use_custom_mask = False  # True/False
+use_custom_mask = True  # True/False
 
 # The directory of your input and output data
 PATH = cfg.PG_INPUT_PATH
@@ -56,7 +56,7 @@ providers = [('CUDAExecutionProvider', cuda_provider_options)]
 # desiered output: future 14 days forecast
 
 h = cfg.PG.HORIZON
-output_data_dir = os.path.join(output_data_dir, str(h))
+output_data_dir = os.path.join(output_data_dir, 'inference', str(h))
 utils.mkdirs(output_data_dir)
 
 if h == 24:
@@ -140,7 +140,7 @@ for data in tqdm(test_dataloader):
     # multi-step prediction for single output
     for space in range(spaces):
         current_time = input_time + timedelta(hours=freq*(space+1))
-        print("predicting on....", current_time)
+        # print("predicting on....", current_time)
 
         # Call the model pretrained for 24 hours forecast
         output, output_surface = ort_session.run(

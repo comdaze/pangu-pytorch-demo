@@ -88,7 +88,7 @@ criterion = nn.L1Loss(reduction='none')
 # Load constants and teleconnection indices
 aux_constants = utils_data.loadAllConstants(
     device='cpu')  # 'weather_statistics','weather_statistics_last','constant_maps','tele_indices','variable_weights'
-upper_weights, surface_weights = aux_constants['variable_weights']
+upper_weights, surface_weights, upper_loss_weight, surface_loss_weight = aux_constants['variable_weights']
 
 test_loss = 0.0
 
