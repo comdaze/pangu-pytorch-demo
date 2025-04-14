@@ -191,7 +191,7 @@ if __name__ == "__main__":
         start_epoch = 1
         
         if args.load_pretrained:
-            cpk = torch.load(os.path.join(output_path, "models/train_20.pth"), weights_only=False)
+            cpk = torch.load(os.path.join(output_path, "models/train_34.pth"), weights_only=False)
             cpk['model'] = {"module."+k: v for k, v in cpk['model'].items()}
             model.load_state_dict(cpk['model'])
             # optimizer.load_state_dict(cpk['optimizer'])  # TODO：暂不加载optimizer状态，因为deepspeed的optimizer比较复杂
@@ -208,7 +208,7 @@ if __name__ == "__main__":
         start_epoch = 1
         
         if args.load_pretrained:
-            cpk = torch.load(os.path.join(output_path, "models/train_20.pth"), weights_only=True)
+            cpk = torch.load(os.path.join(output_path, "models/train_34.pth"), weights_only=True)
             cpk['model'] = {k.replace("module.", ""): v for k, v in cpk['model'].items()}
             model.load_state_dict(cpk['model'])
             optimizer.load_state_dict(cpk['optimizer'])
