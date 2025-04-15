@@ -149,7 +149,7 @@ for data in tqdm(test_dataloader):
     # print('target_surface:', target_surface)
 
     # Required input to the pretrained model: upper ndarray(n, Z, W, H) and surface(n, W, H)
-    input_24, input_surface_24 = input.numpy().astype(np.float32).squeeze(), input_surface.numpy(
+    input, input_surface = input.numpy().astype(np.float32).squeeze(), input_surface.numpy(
     ).astype(np.float32).squeeze()  # input torch.Size([1, 5, 13, 721, 1440])
 
     # spaces = h // 24  # TODO: may change
@@ -167,10 +167,10 @@ for data in tqdm(test_dataloader):
 
         # Call the model pretrained for 24 hours forecast
         output, output_surface = ort_session.run(
-            None, {'input': input_24, 'input_surface': input_surface_24})
+            None, {'input': input, 'input_surface': input_surface})
 
         # Stored the output for next round forecast
-        input_24, input_surface_24 = output, output_surface
+        input, input_surface = output, output_surface
         
         save_path = save_prediction(output, output_surface, h, current_time, save_dir)
 
