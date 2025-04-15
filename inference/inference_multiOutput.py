@@ -28,6 +28,7 @@ from models.pangu_sample import get_wind_speed
 visualize = False  # True/False
 only_use_wind_speed_loss = True  # True/False
 use_custom_mask = True  # True/False
+lead_time = 10  # TODO Forecast 10 days
 
 # The directory of your input and output data
 PATH = cfg.PG_INPUT_PATH
@@ -154,7 +155,7 @@ for data in tqdm(test_dataloader):
     # spaces = h // 24  # TODO: may change
     freq = int(cfg.PG.TEST.FREQUENCY[:-1])
     # spaces = h // freq
-    spaces = 14 * h // freq  # TODO Forecast 14 days
+    spaces = lead_time * h // freq
     # start time
     input_time = datetime.strptime(periods[0][batch_id], '%Y%m%d%H')
     save_dir = os.path.join(output_data_dir, 'predictions', periods[0][batch_id])

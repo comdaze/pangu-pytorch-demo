@@ -9,6 +9,40 @@
 # pip install s5cmd
 # s5cmd cp s3://datalab/nsf-ncar-era5/aux_data/* /opt/dlami/nvme/aux_data/
 # s5cmd cp s3://datalab/nsf-ncar-era5/pretrained_model/* /opt/dlami/nvme/pretrained_model/
+
+# For horizon=24
+# s5cmd cp s3://datalab/nsf-ncar-era5/surface/surface_*00.pt /opt/dlami/nvme/surface/
+# s5cmd cp s3://datalab/nsf-ncar-era5/upper/upper_*00.pt /opt/dlami/nvme/upper/
+
+# For horizon=6
+# s5cmd cp s3://datalab/nsf-ncar-era5/surface/surface_*00.pt /opt/dlami/nvme/surface/
+# s5cmd cp s3://datalab/nsf-ncar-era5/upper/upper_*00.pt /opt/dlami/nvme/upper/
+# s5cmd cp s3://datalab/nsf-ncar-era5/surface/surface_*06.pt /opt/dlami/nvme/surface/
+# s5cmd cp s3://datalab/nsf-ncar-era5/upper/upper_*06.pt /opt/dlami/nvme/upper/
+# s5cmd cp s3://datalab/nsf-ncar-era5/surface/surface_*12.pt /opt/dlami/nvme/surface/
+# s5cmd cp s3://datalab/nsf-ncar-era5/upper/upper_*12.pt /opt/dlami/nvme/upper/
+# s5cmd cp s3://datalab/nsf-ncar-era5/surface/surface_*18.pt /opt/dlami/nvme/surface/
+# s5cmd cp s3://datalab/nsf-ncar-era5/upper/upper_*18.pt /opt/dlami/nvme/upper/
+
+# For horizon=3
+# s5cmd cp s3://datalab/nsf-ncar-era5/surface/surface_*00.pt /opt/dlami/nvme/surface/
+# s5cmd cp s3://datalab/nsf-ncar-era5/upper/upper_*00.pt /opt/dlami/nvme/upper/
+# s5cmd cp s3://datalab/nsf-ncar-era5/surface/surface_*03.pt /opt/dlami/nvme/surface/
+# s5cmd cp s3://datalab/nsf-ncar-era5/upper/upper_*03.pt /opt/dlami/nvme/upper/
+# s5cmd cp s3://datalab/nsf-ncar-era5/surface/surface_*06.pt /opt/dlami/nvme/surface/
+# s5cmd cp s3://datalab/nsf-ncar-era5/upper/upper_*06.pt /opt/dlami/nvme/upper/
+# s5cmd cp s3://datalab/nsf-ncar-era5/surface/surface_*09.pt /opt/dlami/nvme/surface/
+# s5cmd cp s3://datalab/nsf-ncar-era5/upper/upper_*09.pt /opt/dlami/nvme/upper/
+# s5cmd cp s3://datalab/nsf-ncar-era5/surface/surface_*12.pt /opt/dlami/nvme/surface/
+# s5cmd cp s3://datalab/nsf-ncar-era5/upper/upper_*12.pt /opt/dlami/nvme/upper/
+# s5cmd cp s3://datalab/nsf-ncar-era5/surface/surface_*15.pt /opt/dlami/nvme/surface/
+# s5cmd cp s3://datalab/nsf-ncar-era5/upper/upper_*15.pt /opt/dlami/nvme/upper/
+# s5cmd cp s3://datalab/nsf-ncar-era5/surface/surface_*18.pt /opt/dlami/nvme/surface/
+# s5cmd cp s3://datalab/nsf-ncar-era5/upper/upper_*18.pt /opt/dlami/nvme/upper/
+# s5cmd cp s3://datalab/nsf-ncar-era5/surface/surface_*21.pt /opt/dlami/nvme/surface/
+# s5cmd cp s3://datalab/nsf-ncar-era5/upper/upper_*21.pt /opt/dlami/nvme/upper/
+
+# For horizon=1
 # s5cmd cp s3://datalab/nsf-ncar-era5/surface/surface_*.pt /opt/dlami/nvme/surface/
 # s5cmd cp s3://datalab/nsf-ncar-era5/upper/upper_*.pt /opt/dlami/nvme/upper/
 
