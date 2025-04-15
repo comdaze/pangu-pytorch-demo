@@ -66,4 +66,4 @@
 #  --use_deepspeed True
 
 
-torchrun --nproc_per_node 8 --nnodes 1 finetune/finetune_fully.py --load_pretrained True --load_my_best False --only_use_wind_speed_loss True --use_custom_mask True
+torchrun --nproc_per_node 8 --nnodes 1 finetune/finetune_fully.py --load_pretrained False --load_my_best False --only_use_wind_speed_loss True --use_custom_mask True
