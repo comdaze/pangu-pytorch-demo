@@ -20,6 +20,7 @@ from torch import nn
 import torch
 
 from era5_data.config import cfg
+# from era5_data.config_24 import cfg
 from era5_data import score
 from era5_data import utils, utils_data
 
@@ -51,7 +52,8 @@ options.intra_op_num_threads = cfg.GLOBAL.NUM_THREADS
 # Set the behavier of cuda provider
 cuda_provider_options = {'arena_extend_strategy': 'kSameAsRequested', }
 
-providers = [('CUDAExecutionProvider', cuda_provider_options)]
+# providers = [('CUDAExecutionProvider', cuda_provider_options)]
+providers = [('CUDAExecutionProvider', {'device_id': 2})]
 
 # A test for a single input frame
 # desiered output: future 14 days forecast
@@ -80,7 +82,7 @@ test_dataset = utils_data.PTDataset(pt_path=PATH,
                                     validation=False,
                                     startDate=cfg.PG.TEST.START_TIME,
                                     endDate=cfg.PG.TEST.END_TIME,
-                                    freq=cfg.PG.TEST.FREQUENCY,
+                                    freq='24h',  # cfg.PG.TEST.FREQUENCY,
                                     horizon=h,
                                     device='cpu')
 dataset_length = len(test_dataset)
