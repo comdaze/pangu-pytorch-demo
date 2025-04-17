@@ -19,19 +19,11 @@ import numpy as np
 from torch.utils import data
 from torch import nn
 import torch
-# from torch.nn.parallel import DistributedDataParallel
-# from torch.nn.modules.conv import Conv1d
-# from torch.nn.modules.linear import Linear, Identity
-# from torch.nn.modules.normalization import LayerNorm
-# from torch.nn.modules.container import Sequential
-# from torch.nn.modules.activation import GELU, Softmax
-# from torch.nn.modules.dropout import Dropout
-# from timm.layers.drop import DropPath
 
-from era5_data.config import cfg
+# from era5_data.config import cfg
+from era5_data.config_6 import cfg  # TODO
 from era5_data import score
 from era5_data import utils, utils_data
-from models.pangu_model import PanguModel  # , PatchEmbedding_pretrain, DownSample, EarthSpecificLayer, EarthSpecificBlock, Mlp, EarthAttention3D, UpSample, PatchRecovery_pretrain
 
 from models.pangu_sample import get_wind_speed
 
@@ -39,8 +31,6 @@ visualize = False  # True/False
 only_use_wind_speed_loss = True  # True/False
 use_custom_mask = True  # True/False
 lead_time = 10  # TODO Forecast 10 days
-device_id = 0
-device = torch.device('cuda:' + str(device_id))
 
 # The directory of your input and output data
 PATH = cfg.PG_INPUT_PATH
@@ -64,33 +54,14 @@ options.intra_op_num_threads = cfg.GLOBAL.NUM_THREADS
 cuda_provider_options = {'arena_extend_strategy': 'kSameAsRequested', }
 
 # providers = [('CUDAExecutionProvider', cuda_provider_options)]
-providers = [('CUDAExecutionProvider', {'device_id': device_id})]
+providers = [('CUDAExecutionProvider', {'device_id': 1})]
 
 # A test for a single input frame
 # desiered output: future 14 days forecast
 
 h = cfg.PG.HORIZON
-output_data_dir = os.path.join(output_data_dir, 'inference_mix', str(h))
+output_data_dir = os.path.join(output_data_dir, 'inference_mix24', str(h))
 utils.mkdirs(output_data_dir)
-
-# torch.serialization.add_safe_globals([DistributedDataParallel, PanguModel, PatchEmbedding_pretrain, DownSample, EarthSpecificLayer, EarthSpecificBlock, Mlp, EarthAttention3D, UpSample, PatchRecovery_pretrain, Conv1d, Linear, LayerNorm, Sequential, Identity, GELU, Dropout, Softmax, DropPath])
-best_model = PanguModel(device=device).to(device)
-# if cfg.PG.HORIZON == 1:
-#     checkpoint = torch.load(cfg.PG.BENCHMARK.PRETRAIN_1_torch, weights_only=True)
-# elif cfg.PG.HORIZON == 3:
-#     checkpoint = torch.load(cfg.PG.BENCHMARK.PRETRAIN_3_torch, weights_only=True)
-# elif cfg.PG.HORIZON == 6:
-#     checkpoint = torch.load(cfg.PG.BENCHMARK.PRETRAIN_6_torch, weights_only=True)
-# elif cfg.PG.HORIZON == 24:
-#     checkpoint = torch.load(cfg.PG.BENCHMARK.PRETRAIN_24_torch, weights_only=True)
-# else:
-#     print('cfg.PG.HORIZON:', cfg.PG.HORIZON, 'NO CHECKPOINT FOUND')
-# best_model.load_state_dict(checkpoint['model'])
-output_path = os.path.join(cfg.PG_OUT_PATH, 'finetune_fully', str(cfg.PG.HORIZON)+'_only_wind_speed_custom_mask')
-cpk = torch.load(os.path.join(output_path, "models/train_90.pth"), weights_only=True)
-cpk['model'] = {k.replace("module.", ""): v for k, v in cpk['model'].items()}
-best_model.load_state_dict(cpk['model'])
-best_model.eval()
 
 if h == 24:
     ort_session = ort.InferenceSession(cfg.PG.BENCHMARK.PRETRAIN_24, sess_options=options, providers=providers)
@@ -100,6 +71,8 @@ elif h == 3:
     ort_session = ort.InferenceSession(cfg.PG.BENCHMARK.PRETRAIN_3, sess_options=options, providers=providers)
 elif h == 1:
     ort_session = ort.InferenceSession(cfg.PG.BENCHMARK.PRETRAIN_1, sess_options=options, providers=providers)
+
+ort_session_24 = ort.InferenceSession(cfg.PG.BENCHMARK.PRETRAIN_24, sess_options=options, providers=providers)
 
 # Load mean and std of the weather data
 # weather_surface_mean, weather_surface_std = utils.LoadStatic()
@@ -125,7 +98,7 @@ criterion = nn.L1Loss(reduction='none')
 
 # Load constants and teleconnection indices
 aux_constants = utils_data.loadAllConstants(
-    device=device)  # 'weather_statistics','weather_statistics_last','constant_maps','tele_indices','variable_weights'
+    device='cpu')  # 'weather_statistics','weather_statistics_last','constant_maps','tele_indices','variable_weights'
 upper_weights, surface_weights, upper_loss_weight, surface_loss_weight = aux_constants['variable_weights']
 
 test_loss = 0.0
@@ -187,6 +160,7 @@ for data in tqdm(test_dataloader):
     # Required input to the pretrained model: upper ndarray(n, Z, W, H) and surface(n, W, H)
     input, input_surface = input.numpy().astype(np.float32).squeeze(), input_surface.numpy(
     ).astype(np.float32).squeeze()  # input torch.Size([1, 5, 13, 721, 1440])
+    input_24, input_surface_24 = input.copy(), input_surface.copy()
 
     # spaces = h // 24  # TODO: may change
     freq = int(cfg.PG.TEST.FREQUENCY[:-1])
@@ -204,17 +178,15 @@ for data in tqdm(test_dataloader):
 
         # Call the model pretrained for 24 hours forecast
         start = time.time()
-        output, output_surface = ort_session.run(
-            None, {'input': input, 'input_surface': input_surface})
+        if current_time.hour == 0:  # 每天零点的预测使用24小时模型预测
+            output, output_surface = ort_session_24.run(
+                None, {'input': input_24, 'input_surface': input_surface_24})
+            input_24, input_surface_24 = output.copy(), output_surface.copy()
+        else:
+            output, output_surface = ort_session.run(
+                None, {'input': input, 'input_surface': input_surface})
         end = time.time()
         # print('ort_session.run time:', end-start)
-        
-        input_test, input_surface_test = torch.from_numpy(input).unsqueeze(0).to(device), torch.from_numpy(input_surface).unsqueeze(0).to(device)
-        output_test, output_surface_test = best_model(input_test, input_surface_test,
-                                                 aux_constants['weather_statistics'],
-                                                 aux_constants['constant_maps'], aux_constants['const_h'])
-        end2 = time.time()
-        # print('best_model predict time:', end2-end)
 
         # save_path = save_prediction(output, output_surface, h, current_time, save_dir)
         # end2 = time.time()
@@ -234,10 +206,10 @@ for data in tqdm(test_dataloader):
         assert current_time == datetime.strptime(periods[1][batch_id], '%Y%m%d%H')
         target_time = periods[1][batch_id]
 
-        target, target_surface = target.to(device), target_surface.to(device)
-        output, output_surface = utils_data.normBackData(output_test.squeeze(), output_surface_test.squeeze(), aux_constants['weather_statistics_last'])  # 使用微调后的模型的预测结果
+        output, output_surface = torch.from_numpy(output).type(
+            torch.float32), torch.from_numpy(output_surface).type(torch.float32)
         
-        output_surface_wind_speed, target_surface_wind_speed, output_wind_speed, target_wind_speed = get_wind_speed(output_surface, target_surface, output, target)
+        output_surface_wind_speed, target_surface_wind_speed, output_wind_speed, target_wind_speed = get_wind_speed(output_surface.unsqueeze(0), target_surface, output.unsqueeze(0), target)
         
         # Noralize the gt to make the loss compariable
         target_normalized, target_surface_normalized = utils_data.normData(target, target_surface, aux_constants['weather_statistics_last'])
@@ -317,42 +289,42 @@ for data in tqdm(test_dataloader):
                                     path=png_path)
             
         rmse_upper_z[target_time] = score.weighted_rmse_torch_channels(
-            output[0], target[0], mask).detach().cpu().numpy()
+            output[0], target[0], mask).numpy()
         rmse_upper_q[target_time] = score.weighted_rmse_torch_channels(
-            output[1], target[1], mask).detach().cpu().numpy()
+            output[1], target[1], mask).numpy()
         rmse_upper_t[target_time] = score.weighted_rmse_torch_channels(
-            output[2], target[2], mask).detach().cpu().numpy()
+            output[2], target[2], mask).numpy()
         rmse_upper_u[target_time] = score.weighted_rmse_torch_channels(
-            output[3], target[3], mask).detach().cpu().numpy()
+            output[3], target[3], mask).numpy()
         rmse_upper_v[target_time] = score.weighted_rmse_torch_channels(
-            output[4], target[4], mask).detach().cpu().numpy()
+            output[4], target[4], mask).numpy()
         rmse_upper_wind_speed[target_time] = score.weighted_rmse_torch_channels(
-            output_wind_speed, target_wind_speed, mask).detach().cpu().numpy()
+            output_wind_speed, target_wind_speed, mask).numpy()
         rmse_surface[target_time] = score.weighted_rmse_torch_channels(
-            output_surface, target_surface, mask).detach().cpu().numpy()
+            output_surface, target_surface, mask).numpy()
         rmse_surface_wind_speed[target_time] = score.weighted_rmse_torch_channels(
-            output_surface_wind_speed, target_surface_wind_speed, mask).detach().cpu().numpy()
+            output_surface_wind_speed, target_surface_wind_speed, mask).numpy()
 
         # acc TODO: need to support mask
-        surface_mean, _, upper_mean, _ = utils_data.weatherStatistics_output(filepath=os.path.join(cfg.PG_INPUT_PATH, 'aux_data'), device=device)
+        surface_mean, _, upper_mean, _ = utils_data.weatherStatistics_output(filepath=os.path.join(cfg.PG_INPUT_PATH, 'aux_data'), device='cpu')
         output_anomaly = output - upper_mean.squeeze(0)
         target_anomaly = target - upper_mean.squeeze(0)
 
         output_surface_anomaly = output_surface - surface_mean.squeeze(0)
         target_surface_anomaly = target_surface - surface_mean.squeeze(0)
         acc_upper_z[target_time] = score.weighted_acc_torch_channels(
-            output_anomaly[0], target_anomaly[0]).detach().cpu().numpy()
+            output_anomaly[0], target_anomaly[0]).numpy()
         acc_upper_q[target_time] = score.weighted_acc_torch_channels(
-            output_anomaly[1], target_anomaly[1]).detach().cpu().numpy()
+            output_anomaly[1], target_anomaly[1]).numpy()
         acc_upper_t[target_time] = score.weighted_acc_torch_channels(
-            output_anomaly[2], target_anomaly[2]).detach().cpu().numpy()
+            output_anomaly[2], target_anomaly[2]).numpy()
         acc_upper_u[target_time] = score.weighted_acc_torch_channels(
-            output_anomaly[3], target_anomaly[3]).detach().cpu().numpy()
+            output_anomaly[3], target_anomaly[3]).numpy()
         acc_upper_v[target_time] = score.weighted_acc_torch_channels(
-            output_anomaly[4], target_anomaly[4]).detach().cpu().numpy()
+            output_anomaly[4], target_anomaly[4]).numpy()
 
         acc_surface[target_time] = score.weighted_acc_torch_channels(output_surface_anomaly,
-                                                                    target_surface_anomaly).detach().cpu().numpy()
+                                                                    target_surface_anomaly).numpy()
 
     # Save rmse,acc to csv
     csv_path = os.path.join(output_data_dir, input_time_str, "csv")
