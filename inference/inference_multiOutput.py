@@ -53,7 +53,7 @@ options.intra_op_num_threads = cfg.GLOBAL.NUM_THREADS
 cuda_provider_options = {'arena_extend_strategy': 'kSameAsRequested', }
 
 # providers = [('CUDAExecutionProvider', cuda_provider_options)]
-providers = [('CUDAExecutionProvider', {'device_id': 1})]
+providers = [('CUDAExecutionProvider', {'device_id': 0})]
 
 # A test for a single input frame
 # desiered output: future 14 days forecast
