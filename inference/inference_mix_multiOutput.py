@@ -70,7 +70,7 @@ providers = [('CUDAExecutionProvider', {'device_id': device_id})]
 # desiered output: future 14 days forecast
 
 h = cfg.PG.HORIZON
-output_data_dir = os.path.join(output_data_dir, 'inference_mix', str(h))
+output_data_dir = os.path.join(output_data_dir, 'inference_mix_bug_fix', str(h))
 utils.mkdirs(output_data_dir)
 
 # torch.serialization.add_safe_globals([DistributedDataParallel, PanguModel, PatchEmbedding_pretrain, DownSample, EarthSpecificLayer, EarthSpecificBlock, Mlp, EarthAttention3D, UpSample, PatchRecovery_pretrain, Conv1d, Linear, LayerNorm, Sequential, Identity, GELU, Dropout, Softmax, DropPath])
@@ -221,7 +221,7 @@ for data in tqdm(test_dataloader):
         # print('save_prediction time:', end2-end)
         
         # Stored the output for next round forecast
-        input, input_surface = output, output_surface
+        input, input_surface = output.copy(), output_surface.copy()
         
         if space>0:
             _, _, target, target_surface, periods = test_dataset[test_dataset.keys.index(current_time)-1]  # TODO

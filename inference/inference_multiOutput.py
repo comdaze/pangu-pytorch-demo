@@ -184,7 +184,7 @@ for data in tqdm(test_dataloader):
         # print('save_prediction time:', end2-end)
         
         # Stored the output for next round forecast
-        input, input_surface = output, output_surface
+        input, input_surface = output.copy(), output_surface.copy()
         
         if space>0:
             _, _, target, target_surface, periods = test_dataset[test_dataset.keys.index(current_time)-1]  # TODO
