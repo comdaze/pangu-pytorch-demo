@@ -75,6 +75,17 @@ utils.mkdirs(output_data_dir)
 
 # torch.serialization.add_safe_globals([DistributedDataParallel, PanguModel, PatchEmbedding_pretrain, DownSample, EarthSpecificLayer, EarthSpecificBlock, Mlp, EarthAttention3D, UpSample, PatchRecovery_pretrain, Conv1d, Linear, LayerNorm, Sequential, Identity, GELU, Dropout, Softmax, DropPath])
 best_model = PanguModel(device=device).to(device)
+# if cfg.PG.HORIZON == 1:
+#     checkpoint = torch.load(cfg.PG.BENCHMARK.PRETRAIN_1_torch, weights_only=True)
+# elif cfg.PG.HORIZON == 3:
+#     checkpoint = torch.load(cfg.PG.BENCHMARK.PRETRAIN_3_torch, weights_only=True)
+# elif cfg.PG.HORIZON == 6:
+#     checkpoint = torch.load(cfg.PG.BENCHMARK.PRETRAIN_6_torch, weights_only=True)
+# elif cfg.PG.HORIZON == 24:
+#     checkpoint = torch.load(cfg.PG.BENCHMARK.PRETRAIN_24_torch, weights_only=True)
+# else:
+#     print('cfg.PG.HORIZON:', cfg.PG.HORIZON, 'NO CHECKPOINT FOUND')
+# best_model.load_state_dict(checkpoint['model'])
 output_path = os.path.join(cfg.PG_OUT_PATH, 'finetune_fully', str(cfg.PG.HORIZON)+'_only_wind_speed_custom_mask')
 cpk = torch.load(os.path.join(output_path, "models/train_90.pth"), weights_only=True)
 cpk['model'] = {k.replace("module.", ""): v for k, v in cpk['model'].items()}
@@ -224,9 +235,9 @@ for data in tqdm(test_dataloader):
         target_time = periods[1][batch_id]
 
         target, target_surface = target.to(device), target_surface.to(device)
-        output, output_surface = output_test.squeeze(), output_surface_test.squeeze()  # 使用微调后的模型的预测结果
+        output, output_surface = utils_data.normBackData(output_test.squeeze(), output_surface_test.squeeze(), aux_constants['weather_statistics_last'])  # 使用微调后的模型的预测结果
         
-        output_surface_wind_speed, target_surface_wind_speed, output_wind_speed, target_wind_speed = get_wind_speed(output_surface.unsqueeze(0), target_surface, output.unsqueeze(0), target)
+        output_surface_wind_speed, target_surface_wind_speed, output_wind_speed, target_wind_speed = get_wind_speed(output_surface, target_surface, output, target)
         
         # Noralize the gt to make the loss compariable
         target_normalized, target_surface_normalized = utils_data.normData(target, target_surface, aux_constants['weather_statistics_last'])
