@@ -76,10 +76,10 @@ if all_forecasts:
     
     # 检查是否有超过10天的预报
     max_hours = combined_df['forecast_hour'].max() if 'forecast_hour' in combined_df.columns else prediction_length*horizon
-    forecast_hours = range(1, min(max_hours + 1, prediction_length*horizon+1))  # 限制到最多10天
+    forecast_hours = range(horizon, min(max_hours + 1, prediction_length*horizon+1))  # 限制到最多10天
     
     # 只保留1-10天的预报
-    combined_df = combined_df[combined_df['forecast_hour'].between(1, prediction_length*horizon)]
+    combined_df = combined_df[combined_df['forecast_hour'].between(horizon, prediction_length*horizon)]
     
     # 计算每个预报天的平均RMSE
     avg_by_hour = combined_df.groupby('forecast_hour')['wind_speed'].agg(['mean', 'std', 'count'])
@@ -105,7 +105,9 @@ if all_forecasts:
     plt.xlabel('Forecast Hour')
     plt.ylabel('RMSE (Wind Speed)')
     plt.title('Average RMSE by Forecast Hour')
-    plt.xticks(forecast_hours)
+    plt.xticks(forecast_hours[::horizon])  # 只显示每隔几个标签
+    plt.xlim(left=0)
+    plt.ylim(bottom=0)  # 设置 y 轴从 0 开始，只设置下限，上限自动调整
     
     # 添加数值标签
     for day, mean, count in zip(avg_by_hour.index, avg_by_hour['mean'], avg_by_hour['count']):
@@ -113,7 +115,7 @@ if all_forecasts:
     
     plt.tight_layout()
     plt.savefig(f'average_rmse_by_forecast_hour_horizon_{horizon}.png', dpi=300)
-    plt.show()
+    # plt.show()
     
     # 创建热图来显示所有初始时间的预报性能
     if len(forecast_init_dirs) > 1:
@@ -142,7 +144,7 @@ if all_forecasts:
         plt.ylabel('Initialization Time')
         plt.tight_layout()
         plt.savefig(f'rmse_heatmap_by_init_time_horizon_{horizon}.png', dpi=300)
-        plt.show()
+        # plt.show()
         
         # 保存透视表
         pivot_df.to_csv(f'rmse_by_init_time_and_forecast_hour_horizon_{horizon}.csv')
