@@ -20,8 +20,7 @@ from torch.utils import data
 from torch import nn
 import torch
 
-# from era5_data.config import cfg
-from era5_data.config_24 import cfg  # TODO
+from era5_data.config import cfg
 from era5_data import score
 from era5_data import utils, utils_data
 
@@ -54,7 +53,7 @@ options.intra_op_num_threads = cfg.GLOBAL.NUM_THREADS
 cuda_provider_options = {'arena_extend_strategy': 'kSameAsRequested', }
 
 # providers = [('CUDAExecutionProvider', cuda_provider_options)]
-providers = [('CUDAExecutionProvider', {'device_id': 0})]
+providers = [('CUDAExecutionProvider', {'device_id': 1})]
 
 # A test for a single input frame
 # desiered output: future 14 days forecast
@@ -83,7 +82,7 @@ test_dataset = utils_data.PTDataset(pt_path=PATH,
                                     validation=False,
                                     startDate=cfg.PG.TEST.START_TIME,
                                     endDate=cfg.PG.TEST.END_TIME,
-                                    freq='24h',  # TODO: cfg.PG.TEST.FREQUENCY, 只是把每个初始值拿出来
+                                    freq=cfg.PG.TEST.FREQUENCY,
                                     horizon=h,
                                     device='cpu')
 dataset_length = len(test_dataset)
@@ -150,6 +149,10 @@ for data in tqdm(test_dataloader):
     # print('input_surface:', input_surface.shape)
     # print('target:', target.shape)
     # print('target_surface:', target_surface.shape)
+    
+    # print('periods[0][batch_id]:', periods[0][batch_id])
+    if not periods[0][batch_id].endswith('00'):  # 只评估从0点开始的结果
+        continue
 
     # Required input to the pretrained model: upper ndarray(n, Z, W, H) and surface(n, W, H)
     input, input_surface = input.numpy().astype(np.float32).squeeze(), input_surface.numpy(
@@ -158,7 +161,7 @@ for data in tqdm(test_dataloader):
     # spaces = h // 24  # TODO: may change
     freq = int(cfg.PG.TEST.FREQUENCY[:-1])
     # spaces = h // freq
-    spaces = lead_time * h // freq
+    spaces = lead_time * 24 // freq
     # start time
     input_time_str = periods[0][batch_id]
     input_time = datetime.strptime(input_time_str, '%Y%m%d%H')
