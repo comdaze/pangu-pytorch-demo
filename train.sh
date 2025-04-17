@@ -76,3 +76,4 @@ torchrun --nproc_per_node 8 --nnodes 1 finetune/finetune_fully.py --load_pretrai
 # tmux ls
 # tmux detach -s session_name
 # tmux attach -t session_name
+# s5cmd sync /opt/dlami/nvme/model/ s3://datalab/nsf-ncar-era5/model/
