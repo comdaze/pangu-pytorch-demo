@@ -18,7 +18,7 @@
 # s5cmd cp s3://datalab/nsf-ncar-era5/surface/surface_*00.pt /opt/dlami/nvme/surface/
 # s5cmd cp s3://datalab/nsf-ncar-era5/upper/upper_*00.pt /opt/dlami/nvme/upper/
 # s5cmd cp s3://datalab/nsf-ncar-era5/surface/surface_*06.pt /opt/dlami/nvme/surface/
-# s5cmd cp s3://datalab/nsf-ncar-era5/upper/upper_2024*06.pt /opt/dlami/nvme/upper/
+# s5cmd cp s3://datalab/nsf-ncar-era5/upper/upper_*06.pt /opt/dlami/nvme/upper/
 # s5cmd cp s3://datalab/nsf-ncar-era5/surface/surface_*12.pt /opt/dlami/nvme/surface/
 # s5cmd cp s3://datalab/nsf-ncar-era5/upper/upper_*12.pt /opt/dlami/nvme/upper/
 # s5cmd cp s3://datalab/nsf-ncar-era5/surface/surface_*18.pt /opt/dlami/nvme/surface/
