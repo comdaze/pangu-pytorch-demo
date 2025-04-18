@@ -60,7 +60,7 @@ providers = [('CUDAExecutionProvider', {'device_id': 2})]
 # desiered output: future 14 days forecast
 
 h = cfg.PG.HORIZON
-output_data_dir = os.path.join(output_data_dir, 'inference_mix24-6', str(h))
+output_data_dir = os.path.join(output_data_dir, 'inference_mix24', str(h))
 utils.mkdirs(output_data_dir)
 
 if h == 24:
@@ -180,7 +180,7 @@ for data in tqdm(test_dataloader):
 
         # Call the model pretrained for 24 hours forecast
         start = time.time()
-        print('current_time.hour:', current_time.hour)
+        # print('current_time.hour:', current_time.hour)
         if current_time.hour == 0:  # 每天零点的预测使用24小时模型预测
             output, output_surface = ort_session_24.run(
                 None, {'input': input_24, 'input_surface': input_surface_24})
