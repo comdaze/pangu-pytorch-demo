@@ -18,7 +18,7 @@
 # s5cmd cp s3://datalab/nsf-ncar-era5/surface/surface_*00.pt /opt/dlami/nvme/surface/
 # s5cmd cp s3://datalab/nsf-ncar-era5/upper/upper_*00.pt /opt/dlami/nvme/upper/
 # s5cmd cp s3://datalab/nsf-ncar-era5/surface/surface_*06.pt /opt/dlami/nvme/surface/
-# s5cmd cp s3://datalab/nsf-ncar-era5/upper/upper_*06.pt /opt/dlami/nvme/upper/
+# s5cmd cp s3://datalab/nsf-ncar-era5/upper/upper_2024*06.pt /opt/dlami/nvme/upper/
 # s5cmd cp s3://datalab/nsf-ncar-era5/surface/surface_*12.pt /opt/dlami/nvme/surface/
 # s5cmd cp s3://datalab/nsf-ncar-era5/upper/upper_*12.pt /opt/dlami/nvme/upper/
 # s5cmd cp s3://datalab/nsf-ncar-era5/surface/surface_*18.pt /opt/dlami/nvme/surface/
@@ -77,3 +77,4 @@ torchrun --nproc_per_node 8 --nnodes 1 finetune/finetune_fully.py --load_pretrai
 # tmux detach -s session_name
 # tmux attach -t session_name
 # s5cmd sync /opt/dlami/nvme/model/ s3://datalab/nsf-ncar-era5/model/
+# s5cmd sync s3://datalab/nsf-ncar-era5/model/* /opt/dlami/nvme/model/
