@@ -26,7 +26,7 @@ def visualize_map(data, title="", colormap="viridis", vmin=None, vmax=None):
     ax = fig.add_subplot(111, projection=ccrs.PlateCarree())
     
     # 添加地图特征
-    ax.add_feature(cfeature.COASTLINE, linewidth=0.5)
+    ax.add_feature(cfeature.COASTLINE, linewidth=0.75, edgecolor='black') # Adjusted style
     ax.add_feature(cfeature.BORDERS, linewidth=0.5, linestyle=':')
     ax.gridlines(draw_labels=True, linewidth=0.5, color='gray', alpha=0.5, linestyle='--')
     
@@ -51,11 +51,24 @@ def visualize_map(data, title="", colormap="viridis", vmin=None, vmax=None):
         vmax = np.nanpercentile(data_sampled, 98)
     
     # 绘制数据
-    im = ax.pcolormesh(lon, lat, data_sampled, transform=ccrs.PlateCarree(), 
-                      cmap=colormap, vmin=vmin, vmax=vmax)
+    # Define contour levels
+    num_levels = 15
+    levels = np.linspace(vmin, vmax, num_levels)
     
+    # Filled contours
+    im = ax.contourf(lon, lat, data_sampled, levels=levels, transform=ccrs.PlateCarree(),
+                     cmap=colormap, extend='both')
+    
+    # Line contours
+    line_contours = ax.contour(lon, lat, data_sampled, levels=levels, colors='black', 
+                               linewidths=0.5, transform=ccrs.PlateCarree())
+    
+    # Add contour labels (optional, can be made less intrusive or removed if too cluttered)
+    ax.clabel(line_contours, inline=True, fontsize=6, fmt='%1.1f')
+
     # 添加颜色条
-    cbar = plt.colorbar(im, ax=ax, orientation='horizontal', pad=0.05, shrink=0.8)
+    cbar = plt.colorbar(im, ax=ax, orientation='horizontal', pad=0.05, shrink=0.8, 
+                        ticks=np.linspace(vmin, vmax, num_levels // 2)) # Adjust ticks for clarity
     cbar.ax.tick_params(labelsize=8)
     
     # 设置标题
@@ -92,14 +105,15 @@ def calculate_metrics(output, target, output_surface, target_surface):
     rmse_wind = torch.sqrt(torch.mean((wind_speed_output - wind_speed_target)**2)).item()
     
     # 计算地表数据的RMSE
-    rmse_u10 = torch.sqrt(torch.mean((output_surface[0] - target_surface[0])**2)).item()
-    rmse_v10 = torch.sqrt(torch.mean((output_surface[1] - target_surface[1])**2)).item()
-    rmse_t2m = torch.sqrt(torch.mean((output_surface[2] - target_surface[2])**2)).item()
-    rmse_msl = torch.sqrt(torch.mean((output_surface[3] - target_surface[3])**2)).item()
+    # Corrected indices: msl:0, u10:1, v10:2, t2m:3
+    rmse_msl = torch.sqrt(torch.mean((output_surface[0] - target_surface[0])**2)).item()
+    rmse_u10 = torch.sqrt(torch.mean((output_surface[1] - target_surface[1])**2)).item()
+    rmse_v10 = torch.sqrt(torch.mean((output_surface[2] - target_surface[2])**2)).item()
+    rmse_t2m = torch.sqrt(torch.mean((output_surface[3] - target_surface[3])**2)).item()
     
-    # 计算地表风速
-    wind10_output = torch.sqrt(output_surface[0]**2 + output_surface[1]**2)
-    wind10_target = torch.sqrt(target_surface[0]**2 + target_surface[1]**2)
+    # 计算地表风速 (using corrected u10 at index 1, v10 at index 2)
+    wind10_output = torch.sqrt(output_surface[1]**2 + output_surface[2]**2)
+    wind10_target = torch.sqrt(target_surface[1]**2 + target_surface[2]**2)
     rmse_wind10 = torch.sqrt(torch.mean((wind10_output - wind10_target)**2)).item()
     
     # 返回所有指标

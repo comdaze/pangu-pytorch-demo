@@ -3,7 +3,6 @@ matplotlib>=3.5.0
 cartopy>=0.20.0
 numpy>=1.20.0
 torch>=1.10.0
-onnxruntime>=1.10.0
 xarray>=0.20.0
 netCDF4>=1.5.0
 pillow>=9.0.0
