@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: Apache-2.0
+# CorrDiff generation (regression + diffusion) on the custom WRF 25km->5km
+# wind dataset. Uses the checkpoints trained on SageMaker.
+
+hydra:
+    job:
+          chdir: false
+          name: generate_wrf
+    run:
+          dir: ./outputs/${hydra:job.name}
+    searchpath:
+          - pkg://conf/base # Do not modify
+
+defaults:
+    - dataset: custom
+    - generation: non_patched
+
+# Custom dataset parameters (passed to WRFDataset.__init__)
+dataset:
+    type: datasets/wrf.py::WRFDataset
+    data_path: ./data/wrf/wrf_25km_5km_train.nc
+    stats_path: ./data/wrf/stats_25km_5km.json
+    input_variables: [U1000, U850, U10m, U100m, V1000, V850, V10m, V100m]
+    output_variables: [U1000, U850, U10m, U100m, V1000, V850, V10m, V100m]
+    invariant_variables: null
+
+generation:
+    num_ensembles: 4
+    # number of stochastic ensemble members per input time
+    seed_batch_size: 2
+    times:
+        - 2016-09-30T18:00:00
+        - 2016-09-30T19:00:00
+        - 2016-09-30T20:00:00
+        - 2016-09-30T21:00:00
+    io:
+        res_ckpt_filename: /opt/dlami/nvme/corrdiff_diff/diffckpt/EDMPrecondSuperResolution.mdlus
+        reg_ckpt_filename: /opt/dlami/nvme/corrdiff_reg/regckpt/CorrDiffRegressionUNet.mdlus
+
+wandb:
+    mode: offline
