@@ -21,6 +21,10 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import inference_engine as eng
 import wind_power as wp
+try:
+    import corrdiff_infer as cdi
+except Exception:
+    cdi = None
 from era5_data.config import cfg
 from era5_data import utils_data
 
@@ -75,6 +79,8 @@ def run_forecast(farm, horizon_days=7, init_date=None, factor=5, progress=None):
     times, hub_ws_pt, cf_pt = [], [], []
     field_snaps = {}  # lead_day -> (downscaled_field, extent)
     snap_days = sorted(set([1, max(1, horizon_days // 2), horizon_days]))
+    use_corrdiff = bool(cdi) and cdi.available()
+    downscale_method = "CorrDiff (regression+diffusion)" if use_corrdiff else "bilinear (placeholder)"
 
     for k in range(1, horizon_days + 1):
         if progress:
@@ -84,12 +90,15 @@ def run_forecast(farm, horizon_days=7, init_date=None, factor=5, progress=None):
                               aux["constant_maps"], aux["const_h"])
             out, outs = utils_data.normBackData(out, outs, aux["weather_statistics_last"])
 
-        # wind speed field at the selected level
+        # wind components + speed field at the selected level
         if level == "10m":
-            wsfield = torch.sqrt(outs[0, 1] ** 2 + outs[0, 2] ** 2).cpu().numpy()
+            ufield = outs[0, 1].cpu().numpy()
+            vfield = outs[0, 2].cpu().numpy()
         else:
             li = eng.PRESSURE_LEVELS.index(int(level))
-            wsfield = torch.sqrt(out[0, 3, li] ** 2 + out[0, 4, li] ** 2).cpu().numpy()
+            ufield = out[0, 3, li].cpu().numpy()
+            vfield = out[0, 4, li].cpu().numpy()
+        wsfield = np.sqrt(ufield ** 2 + vfield ** 2)
 
         # farm-area wind = 3x3 cell neighbourhood mean (~75 km, robust to single-cell noise)
         pt = float(wsfield[max(0, fr - 1):fr + 2, max(0, fc - 1):fc + 2].mean())
@@ -108,8 +117,18 @@ def run_forecast(farm, horizon_days=7, init_date=None, factor=5, progress=None):
 
         # store downscaled regional snapshot at selected leads
         if k in snap_days:
-            sub, extent = crop_bbox(wsfield, farm["lat"], farm["lon"])
-            fine = wp.downscale(sub, factor=factor, method="bilinear")
+            su, extent = crop_bbox(ufield, farm["lat"], farm["lon"])
+            sv, _ = crop_bbox(vfield, farm["lat"], farm["lon"])
+            fine = None
+            if use_corrdiff:
+                try:
+                    fine = cdi.downscale_speed(su, sv, device=device)
+                except Exception as e:
+                    print(f"[forecast] CorrDiff downscale failed ({e}); using bilinear", flush=True)
+                    fine = None
+            if fine is None:
+                sub = np.sqrt(su ** 2 + sv ** 2)
+                fine = wp.downscale(sub, factor=factor, method="bilinear")
             field_snaps[k] = (fine, extent)
 
         cur_u, cur_s = out, outs  # feed back
@@ -138,6 +157,7 @@ def run_forecast(farm, horizon_days=7, init_date=None, factor=5, progress=None):
         "mean_cf": mean_cf,
         "field_snaps": field_snaps,
         "horizon_days": horizon_days,
+        "downscale_method": downscale_method,
     }
 
 
