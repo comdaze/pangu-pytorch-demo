@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: Apache-2.0
+# CorrDiff diffusion (residual) training on the custom WRF 25km->5km wind dataset.
+# Requires a trained regression checkpoint, set via
+# training.io.regression_checkpoint_path (overridden at launch time).
+
+hydra:
+    job:
+          chdir: false
+          name: wrf_diffusion
+    run:
+          dir: ./output/${hydra:job.name}
+    searchpath:
+          - pkg://conf/base # Do not modify
+
+defaults:
+    - dataset: custom
+    - model: diffusion
+    - model_size: mini
+    - training: ${model}
+
+# Custom dataset parameters (passed to WRFDataset.__init__)
+dataset:
+    type: datasets/wrf.py::WRFDataset
+    data_path: ./data/wrf/wrf_25km_5km_train.nc
+    stats_path: ./data/wrf/stats_25km_5km.json
+    input_variables: [U1000, U850, U10m, U100m, V1000, V850, V10m, V100m]
+    output_variables: [U1000, U850, U10m, U100m, V1000, V850, V10m, V100m]
+    invariant_variables: null
+
+# Small batch so it fits a single modest GPU (g6.2xlarge, 24GB L4).
+training:
+    hp:
+        training_duration: 200000
+        total_batch_size: 16
+        batch_size_per_gpu: 2
+    io:
+        # Overridden at launch with the path to the regression .mdlus checkpoint.
+        regression_checkpoint_path: ./data/regression/CorrDiffRegressionUNet.mdlus
+        print_progress_freq: 200
+        save_checkpoint_freq: 2000
+        validation_freq: 2000
+        validation_steps: 4
+
+wandb:
+    mode: offline
+    results_dir: "./wandb"
+    watch_model: false
