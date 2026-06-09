@@ -13,3 +13,15 @@ fig/
 *.out
 
 data
+
+# Large data archives / extracted data
+*.tar
+train_data_extract/
+
+# CorrDiff training artifacts (keep source, drop generated outputs)
+corrdiff/output/
+corrdiff/wandb/
+corrdiff/multirun/
+corrdiff/checkpoints*/
+*.mdlus
+*.nc

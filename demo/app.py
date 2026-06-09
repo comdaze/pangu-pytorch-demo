@@ -29,6 +29,7 @@ import regions as reg
 
 try:
     import inference_engine as eng
+    import wind_power as wp
     _ENGINE_OK = True
     _ENGINE_ERR = None
 except Exception as _e:  # torch / model import problems
@@ -66,6 +67,7 @@ PAGES = [
     "⑤ 混合推理策略",
     "⑥ 实时推理（真实模型）",
     "⑦ 多步滚动 & 泛化（真实）",
+    "⑧ 风电出力预测（端到端）",
 ]
 page = st.sidebar.radio("导航", PAGES)
 st.sidebar.markdown("---")
@@ -555,6 +557,86 @@ elif page == PAGES[6]:
         st.info("诚实说明：本次微调样本极少（仅 07-01→07-02），且仓库的风速损失在归一化空间计算，"
                 "因此在留出集上 VAAWM 不一定超过零样本——这与论文「朴素/小数据微调可能退化」一致。"
                 "混合推理则能把全局/非目标的退化拉回接近零样本的水平。")
+
+# ============================================================== 页面 ⑧ ======
+elif page == PAGES[7]:
+    st.markdown('<p class="sec">风电出力预测：端到端链路</p>', unsafe_allow_html=True)
+    st.markdown("**AI 大模型（预报）→ CorrDiff 降尺度（精细化）→ 功率曲线转换（出力预测）**")
+    if not _ENGINE_OK:
+        st.error(f"推理引擎导入失败：{_ENGINE_ERR}")
+        st.stop()
+    ok, msg = eng.data_ready()
+    if not ok:
+        st.warning(f"数据未就绪：{msg}")
+        st.stop()
+    device = eng.get_device()
+
+    st.info("诚实说明：① 预报为真实 Pangu+VAAWM；③ 功率曲线为标准风电物理（轮毂外推 + IEC 曲线），"
+            "真实可用；② 降尺度当前是**插值占位**（提升分辨率，不引入精细物理），"
+            "接口已留好，拿到训练好的中国区 CorrDiff 权重即可无缝替换。")
+
+    c = st.columns(4)
+    region_name = c[0].selectbox("目标区域", list(pdata.REGIONS.keys()))
+    ft_ok = eng.finetuned_available()
+    variant = c[1].selectbox("预报权重", ["zeroshot", "vaawm"] if ft_ok else ["zeroshot"],
+                             format_func=lambda v: {"zeroshot": "零样本", "vaawm": "VAAWM微调"}[v])
+    factor = c[2].select_slider("降尺度倍数", [2, 3, 4, 5, 8], value=5,
+                                help="0.25°(~25km) ÷ 倍数。例如 ×5 ≈ 0.05°(~5km)。")
+    in_date = c[3].selectbox("输入时刻", eng.list_input_dates(),
+                             format_func=lambda d: f"{d[:4]}-{d[4:6]}-{d[6:8]}")
+
+    with st.expander("风机参数（功率曲线）"):
+        cc = st.columns(4)
+        wp.HUB_HEIGHT_M = cc[0].number_input("轮毂高度 (m)", 50.0, 160.0, 100.0, 10.0)
+        wp.CUT_IN = cc[1].number_input("切入风速 (m/s)", 1.0, 5.0, 3.0, 0.5)
+        wp.RATED = cc[2].number_input("额定风速 (m/s)", 8.0, 16.0, 12.0, 0.5)
+        wp.CUT_OUT = cc[3].number_input("切出风速 (m/s)", 18.0, 30.0, 25.0, 1.0)
+
+    if st.button("🚀 运行端到端链路", type="primary"):
+        with st.spinner("① 预报 → ② 降尺度 → ③ 出力换算…"):
+            res = eng.run_inference(in_date, device, variant)
+            ws10, ws10_t, _ = eng.get_field(res, "10米风速")  # 预测 & 真值
+            region = pdata.REGIONS[region_name]
+            pred = wp.run_power_chain(ws10, region, factor=factor)
+            truth = wp.run_power_chain(ws10_t, region, factor=factor)
+            st.session_state["wpp"] = (in_date, region_name, variant, pred, truth, res["periods"])
+
+    pack = st.session_state.get("wpp")
+    if pack:
+        in_d, rn, var, pred, truth, periods = pack
+        st.success(f"完成：{rn}，输入 {periods[0]} → 预测 {periods[1]}（+24h）。"
+                   f"粗网格 {pred['coarse_shape']} → 降尺度 {pred['fine_shape']}。")
+
+        m1, m2, m3 = st.columns(3)
+        m1.metric("区域平均容量因子（预测）", f"{pred['mean_cf']*100:.1f}%")
+        m2.metric("区域平均容量因子（真值）", f"{truth['mean_cf']*100:.1f}%")
+        err = (pred['mean_cf'] - truth['mean_cf']) * 100
+        m3.metric("容量因子误差", f"{err:+.1f} 个百分点")
+
+        st.markdown("**① 预报（0.25° 粗网格 10m 风速）**")
+        try:
+            st.pyplot(wp.plot_regional(pred["coarse_ws"], pred["extent"],
+                                       f"Stage1 forecast 10m wind ({rn.split(' ')[0]})",
+                                       cmap="viridis", cbar_label="m/s"))
+            cmid = st.columns(2)
+            with cmid[0]:
+                st.markdown("**② 降尺度后 10m 风速（占位插值）**")
+                st.pyplot(wp.plot_regional(pred["fine_ws"], pred["extent"],
+                                           "Stage2 downscaled 10m wind", cmap="viridis",
+                                           cbar_label="m/s"))
+            with cmid[1]:
+                st.markdown("**③ 容量因子（出力）**")
+                st.pyplot(wp.plot_regional(pred["cf_map"], pred["extent"],
+                                           "Stage3 capacity factor", cmap="YlOrRd",
+                                           cbar_label="CF (0-1)"))
+        except Exception as e:
+            st.warning(f"绘图失败（{e}）。")
+
+        st.caption(f"轮毂高度 {wp.HUB_HEIGHT_M:.0f}m（10m 风速按幂律 α=0.143 外推），"
+                   f"功率曲线：切入 {wp.CUT_IN:.1f} / 额定 {wp.RATED:.1f} / 切出 {wp.CUT_OUT:.1f} m/s。"
+                   "容量因子 = 实际出力 / 额定出力。")
+        st.markdown("- **链路价值**：预报给出区域风场 → 降尺度提升到风电场尺度 → 功率曲线把风速转成可调度的发电出力。\n"
+                    "- **可替换点**：把 ② 的 `wp.downscale()` 换成训练好的 CorrDiff，即得到带精细地形效应的 km 级出力预测（并可用扩散集合给出概率/不确定性）。")
 
 st.markdown("---")
 st.caption("参考：Bridging the Weather Forecasting Gap — Region-Aware and Variable-Specific "
