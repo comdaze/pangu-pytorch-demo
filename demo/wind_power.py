@@ -125,3 +125,85 @@ def plot_regional(field, extent, title="", cmap="viridis", cbar_label=""):
         cb.set_label(cbar_label, fontsize=8)
     ax.set_title(title, fontsize=10)
     return fig
+
+
+# --- Altitude-aware level selection (the ▲ in the refined pipeline) -----------
+# Standard-atmosphere geopotential height (m, above sea level) for pressure levels.
+PRESSURE_HEIGHT_ASL = {"1000": 110.0, "925": 762.0, "850": 1457.0}
+# Height-above-ground levels (m AGL).
+AGL_LEVELS = {"10m": 10.0, "100m": 100.0}
+
+
+def level_height_asl(level_name, farm_elevation_m):
+    """Approximate height (m, above sea level) of a wind field 'level'.
+
+    Pressure levels use standard-atmosphere geopotential height (independent of
+    terrain). AGL levels (10m/100m) are referenced to the wind-farm elevation.
+    `level_name` like 'U850'/'V10m' or '850'/'10m'.
+    """
+    lv = level_name.lstrip("UV")  # 'U850' -> '850', 'V10m' -> '10m'
+    if lv in AGL_LEVELS:
+        return farm_elevation_m + AGL_LEVELS[lv]
+    if lv in PRESSURE_HEIGHT_ASL:
+        return PRESSURE_HEIGHT_ASL[lv]
+    raise ValueError(f"unknown level {level_name}")
+
+
+def select_wind_level(farm_elevation_m, hub_height_m, available_levels):
+    """Pick the available wind level closest to the turbine height.
+
+    target = farm_elevation + hub_height (m ASL). Returns (best_level, details)
+    where details maps level -> (height_asl, |diff|).
+    """
+    target = farm_elevation_m + hub_height_m
+    details = {}
+    best, best_diff = None, float("inf")
+    for lv in available_levels:
+        h = level_height_asl(lv, farm_elevation_m)
+        d = abs(h - target)
+        details[lv] = (h, d)
+        if d < best_diff:
+            best, best_diff = lv, d
+    return best, details
+
+
+def wind_speed_at_level(result_fields, level):
+    """Compute wind speed sqrt(U^2+V^2) for a given level from a dict of fields.
+
+    result_fields: dict with keys like 'U850','V850',... (2D arrays).
+    level: '850'/'10m'/... -> uses 'U'+level and 'V'+level.
+    """
+    u = result_fields["U" + level]
+    v = result_fields["V" + level]
+    return np.sqrt(u ** 2 + v ** 2)
+
+
+def run_power_chain_at_height(wind_global, region, src_level, hub_height_m,
+                              farm_elevation_m, factor=5, method="bilinear"):
+    """Stage 2+3 starting from a wind-speed field already taken at `src_level`.
+
+    src_level: '10m' | '1000' | '925' | '850' (the level chosen by altitude).
+    - AGL levels ('10m'): power-law extrapolate from that AGL height to hub.
+    - Pressure levels: assumed already near hub height -> used directly
+      (we selected them because they are closest to the turbine).
+    Returns same dict as run_power_chain plus the chosen level info.
+    """
+    coarse, extent = crop_region(wind_global, region)
+    fine = downscale(coarse, factor=factor, method=method)
+
+    lv = src_level.lstrip("UV")
+    if lv in AGL_LEVELS:
+        src_h = AGL_LEVELS[lv]
+        hub_ws = extrapolate_to_hub(fine, hub=hub_height_m, ref=src_h)
+        note = f"AGL {lv}: power-law {lv}->{hub_height_m:.0f}m"
+    else:
+        hub_ws = fine  # pressure level already ~hub height
+        note = f"pressure {lv}hPa: used directly (~hub height)"
+
+    cf = capacity_factor(hub_ws)
+    return {
+        "coarse_ws": coarse, "fine_ws": fine, "hub_ws": hub_ws, "cf_map": cf,
+        "mean_cf": float(cf.mean()), "extent": extent,
+        "coarse_shape": coarse.shape, "fine_shape": fine.shape,
+        "src_level": src_level, "note": note,
+    }

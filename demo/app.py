@@ -571,9 +571,9 @@ elif page == PAGES[7]:
         st.stop()
     device = eng.get_device()
 
-    st.info("诚实说明：① 预报为真实 Pangu+VAAWM；③ 功率曲线为标准风电物理（轮毂外推 + IEC 曲线），"
-            "真实可用；② 降尺度当前是**插值占位**（提升分辨率，不引入精细物理），"
-            "接口已留好，拿到训练好的中国区 CorrDiff 权重即可无缝替换。")
+    st.info("诚实说明：① 预报为真实 Pangu+VAAWM；③ 功率曲线为标准风电物理；"
+            "② 降尺度当前是**插值占位**（接口已留好，可换训练好的 CorrDiff）。"
+            "▲ 按风场海拔+轮毂高度，从 Pangu 可用层 {10m,1000,925,850hPa} 自动选最接近的层。")
 
     c = st.columns(4)
     region_name = c[0].selectbox("目标区域", list(pdata.REGIONS.keys()))
@@ -585,58 +585,77 @@ elif page == PAGES[7]:
     in_date = c[3].selectbox("输入时刻", eng.list_input_dates(),
                              format_func=lambda d: f"{d[:4]}-{d[4:6]}-{d[6:8]}")
 
-    with st.expander("风机参数（功率曲线）"):
-        cc = st.columns(4)
-        wp.HUB_HEIGHT_M = cc[0].number_input("轮毂高度 (m)", 50.0, 160.0, 100.0, 10.0)
-        wp.CUT_IN = cc[1].number_input("切入风速 (m/s)", 1.0, 5.0, 3.0, 0.5)
-        wp.RATED = cc[2].number_input("额定风速 (m/s)", 8.0, 16.0, 12.0, 0.5)
-        wp.CUT_OUT = cc[3].number_input("切出风速 (m/s)", 18.0, 30.0, 25.0, 1.0)
+    cca = st.columns(2)
+    default_elev = 1200 if region_name.startswith("新疆") else 10
+    farm_elev = cca[0].slider("风场海拔 (m，地形高度)", 0, 4000, default_elev, 50,
+                              help="高原(如新疆)海拔高，850hPa 层接近轮毂；沿海(如浙江)用近地层。")
+    hub_h = cca[1].slider("轮毂高度 (m，距地面)", 50, 160, 100, 10)
+
+    # ▲ altitude-aware level selection from Pangu's available levels
+    best_level, lvl_details = wp.select_wind_level(farm_elev, hub_h, eng.PANGU_WIND_LEVELS)
+    lname = {"10m": "10m", "1000": "1000hPa", "925": "925hPa", "850": "850hPa"}[best_level]
+    st.caption(f"目标高度 ≈ {farm_elev + hub_h} m(海拔{farm_elev}+轮毂{hub_h})ASL → "
+               f"自动选层：**{lname}**")
+
+    with st.expander("功率曲线参数"):
+        cc = st.columns(3)
+        wp.CUT_IN = cc[0].number_input("切入风速 (m/s)", 1.0, 5.0, 3.0, 0.5)
+        wp.RATED = cc[1].number_input("额定风速 (m/s)", 8.0, 16.0, 12.0, 0.5)
+        wp.CUT_OUT = cc[2].number_input("切出风速 (m/s)", 18.0, 30.0, 25.0, 1.0)
 
     if st.button("🚀 运行端到端链路", type="primary"):
-        with st.spinner("① 预报 → ② 降尺度 → ③ 出力换算…"):
+        with st.spinner(f"① 预报 → ② 降尺度 → ▲ 选层({lname}) → ③ 出力换算…"):
             res = eng.run_inference(in_date, device, variant)
-            ws10, ws10_t, _ = eng.get_field(res, "10米风速")  # 预测 & 真值
             region = pdata.REGIONS[region_name]
-            pred = wp.run_power_chain(ws10, region, factor=factor)
-            truth = wp.run_power_chain(ws10_t, region, factor=factor)
-            st.session_state["wpp"] = (in_date, region_name, variant, pred, truth, res["periods"])
+            wpred = eng.wind_field_at_level(res, best_level, "pred")
+            wtrue = eng.wind_field_at_level(res, best_level, "tgt")
+            pred = wp.run_power_chain_at_height(wpred, region, best_level, hub_h, farm_elev, factor=factor)
+            truth = wp.run_power_chain_at_height(wtrue, region, best_level, hub_h, farm_elev, factor=factor)
+            st.session_state["wpp"] = (in_date, region_name, lname, lvl_details,
+                                       pred, truth, res["periods"])
 
     pack = st.session_state.get("wpp")
     if pack:
-        in_d, rn, var, pred, truth, periods = pack
+        in_d, rn, lname, lvl_details, pred, truth, periods = pack
         st.success(f"完成：{rn}，输入 {periods[0]} → 预测 {periods[1]}（+24h）。"
-                   f"粗网格 {pred['coarse_shape']} → 降尺度 {pred['fine_shape']}。")
+                   f"选用层 {lname}（{pred['note']}）。粗网格 {pred['coarse_shape']} → 降尺度 {pred['fine_shape']}。")
+
+        # per-level selection table
+        rows = []
+        for lv, (h, d) in lvl_details.items():
+            nm = {"10m": "10m", "1000": "1000hPa", "925": "925hPa", "850": "850hPa"}[lv]
+            rows.append({"层": nm, "高度(m ASL)": round(h), "与目标差(m)": round(d),
+                         "选中": "✓" if nm == lname else ""})
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
         m1, m2, m3 = st.columns(3)
         m1.metric("区域平均容量因子（预测）", f"{pred['mean_cf']*100:.1f}%")
         m2.metric("区域平均容量因子（真值）", f"{truth['mean_cf']*100:.1f}%")
-        err = (pred['mean_cf'] - truth['mean_cf']) * 100
-        m3.metric("容量因子误差", f"{err:+.1f} 个百分点")
+        m3.metric("容量因子误差", f"{(pred['mean_cf']-truth['mean_cf'])*100:+.1f} 个百分点")
 
-        st.markdown("**① 预报（0.25° 粗网格 10m 风速）**")
         try:
+            st.markdown(f"**① 预报（0.25° 粗网格，{lname} 风速）**")
             st.pyplot(wp.plot_regional(pred["coarse_ws"], pred["extent"],
-                                       f"Stage1 forecast 10m wind ({rn.split(' ')[0]})",
+                                       f"Stage1 forecast wind ({rn.split(' ')[0]}, {lname})",
                                        cmap="viridis", cbar_label="m/s"))
             cmid = st.columns(2)
             with cmid[0]:
-                st.markdown("**② 降尺度后 10m 风速（占位插值）**")
+                st.markdown("**② 降尺度后风速（占位插值）**")
                 st.pyplot(wp.plot_regional(pred["fine_ws"], pred["extent"],
-                                           "Stage2 downscaled 10m wind", cmap="viridis",
-                                           cbar_label="m/s"))
+                                           "Stage2 downscaled wind", cmap="viridis", cbar_label="m/s"))
             with cmid[1]:
                 st.markdown("**③ 容量因子（出力）**")
                 st.pyplot(wp.plot_regional(pred["cf_map"], pred["extent"],
-                                           "Stage3 capacity factor", cmap="YlOrRd",
-                                           cbar_label="CF (0-1)"))
+                                           "Stage3 capacity factor", cmap="YlOrRd", cbar_label="CF (0-1)"))
         except Exception as e:
             st.warning(f"绘图失败（{e}）。")
 
-        st.caption(f"轮毂高度 {wp.HUB_HEIGHT_M:.0f}m（10m 风速按幂律 α=0.143 外推），"
-                   f"功率曲线：切入 {wp.CUT_IN:.1f} / 额定 {wp.RATED:.1f} / 切出 {wp.CUT_OUT:.1f} m/s。"
-                   "容量因子 = 实际出力 / 额定出力。")
-        st.markdown("- **链路价值**：预报给出区域风场 → 降尺度提升到风电场尺度 → 功率曲线把风速转成可调度的发电出力。\n"
-                    "- **可替换点**：把 ② 的 `wp.downscale()` 换成训练好的 CorrDiff，即得到带精细地形效应的 km 级出力预测（并可用扩散集合给出概率/不确定性）。")
+        st.caption(f"功率曲线：切入 {wp.CUT_IN:.1f} / 额定 {wp.RATED:.1f} / 切出 {wp.CUT_OUT:.1f} m/s。"
+                   "若选中近地层(10m)则按幂律外推到轮毂高度；若选中气压层则视为已接近轮毂高度直接使用。")
+        st.markdown("- **▲ 选层价值**：高原风场(新疆)目标高度落在 850hPa 附近，直接用 850hPa 风比从 10m 外推更准；沿海(浙江)则用近地层。\n"
+                    "- **可替换点**：把 ② 的 `wp.downscale()` 换成训练好的 CorrDiff，即得带地形效应的 km 级出力(并可用扩散集合给概率)。")
+
+
 
 st.markdown("---")
 st.caption("参考：Bridging the Weather Forecasting Gap — Region-Aware and Variable-Specific "

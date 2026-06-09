@@ -202,6 +202,25 @@ def get_field(result, kind):
     raise ValueError(kind)
 
 
+# Pangu output levels available for altitude-aware selection.
+PANGU_WIND_LEVELS = ["10m", "1000", "925", "850"]
+
+
+def wind_field_at_level(result, level, which="pred"):
+    """Global (721,1440) wind-speed field at a named level from a Pangu result.
+
+    level in {'10m','1000','925','850'}. '10m' uses surface u10/v10; pressure
+    levels use upper u(ch3)/v(ch4) at the matching level index.
+    which: 'pred' or 'tgt'.
+    """
+    surf = result["pred_surface"] if which == "pred" else result["tgt_surface"]
+    up = result["pred_upper"] if which == "pred" else result["tgt_upper"]
+    if level == "10m":
+        return _wind(surf[1], surf[2])
+    li = PRESSURE_LEVELS.index(int(level))
+    return _wind(up[3, li], up[4, li])
+
+
 def masked_rmse(pred_field, target_field, mask=None, device=None):
     device = device or get_device()
     p = torch.from_numpy(np.ascontiguousarray(pred_field)).float().to(device)
