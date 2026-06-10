@@ -20,6 +20,7 @@ import json
 import os
 import queue
 import re
+import secrets
 import sys
 import threading
 
@@ -42,6 +43,36 @@ app = FastAPI(title="风眼 · 风电功率预报 API")
 app.add_middleware(
     CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
 )
+
+# ---- HTTP Basic Auth (single login user/pass; configurable via env) ----
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response as _Response
+
+AUTH_USER = os.environ.get("FENGYAN_USER", "admin")
+AUTH_PASS = os.environ.get("FENGYAN_PASS", "changeme")
+
+
+class BasicAuthMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        # health check endpoint is exempt (ALB target-group health check)
+        if request.url.path == "/healthz":
+            return await call_next(request)
+        ok = False
+        hdr = request.headers.get("authorization", "")
+        if hdr.startswith("Basic "):
+            try:
+                u, _, p = base64.b64decode(hdr[6:]).decode("utf-8").partition(":")
+                ok = (secrets.compare_digest(u, AUTH_USER)
+                      and secrets.compare_digest(p, AUTH_PASS))
+            except Exception:
+                ok = False
+        if not ok:
+            return _Response("Authentication required", status_code=401,
+                             headers={"WWW-Authenticate": 'Basic realm="Fengyan"'})
+        return await call_next(request)
+
+
+app.add_middleware(BasicAuthMiddleware)
 
 SYSTEM = f"""你是「风眼」——一个面向风电场的专业气象与功率预报智能助手。语气专业、简洁、可靠，使用中文。
 
@@ -328,7 +359,20 @@ def farms():
     return list(wf.WIND_FARMS.values())
 
 
+@app.get("/healthz")
+def healthz():
+    return {"status": "ok"}
+
+
 @app.post("/api/chat")
 def chat(req: ChatRequest):
     return StreamingResponse(chat_stream(req.messages),
                              media_type="text/plain; charset=utf-8")
+
+
+# ---- serve the built assistant-ui frontend (single-origin, behind auth) ----
+from fastapi.staticfiles import StaticFiles
+
+_DIST = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web", "dist")
+if os.path.isdir(_DIST):
+    app.mount("/", StaticFiles(directory=_DIST, html=True), name="web")

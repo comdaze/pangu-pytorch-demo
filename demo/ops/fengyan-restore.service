@@ -1,0 +1,14 @@
+[Unit]
+Description=Restore Fengyan demo assets from S3 if the instance-store was wiped
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+RemainAfterExit=yes
+TimeoutStartSec=1800
+ExecStart=/bin/bash -c 'test -f /opt/dlami/nvme/model/finetune_vaawm/24/vaawm_pre2019.pth || bash /home/ubuntu/pangu-pytorch-demo/demo/ops/restore_assets.sh'
+
+[Install]
+WantedBy=multi-user.target

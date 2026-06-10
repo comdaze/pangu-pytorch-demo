@@ -1,0 +1,19 @@
+[Unit]
+Description=Fengyan wind-power forecast (FastAPI + assistant-ui, behind Basic Auth)
+After=network-online.target fengyan-restore.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/pangu-pytorch-demo/demo
+Environment=CUDA_VISIBLE_DEVICES=0
+Environment=LD_LIBRARY_PATH=/opt/conda/lib
+Environment=FENGYAN_USER=admin
+Environment=FENGYAN_PASS=CHANGE_ME_VIA_ENV
+ExecStart=/opt/conda/bin/uvicorn api:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
