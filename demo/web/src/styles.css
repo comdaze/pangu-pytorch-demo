@@ -137,7 +137,7 @@ body {
 .composer:focus-within { border-color: var(--coral); box-shadow: 0 0 0 2px rgba(217,119,87,.16); }
 .composer-input {
   flex: 1; border: none; outline: none; resize: none; background: transparent;
-  font-size: 1.05rem; line-height: 1.6; max-height: 200px; min-height: 26px;
+  font-size: 1.05rem; line-height: 1.65; max-height: 220px; min-height: 5rem;
   color: var(--ink); font-family: inherit; padding: .15rem 0;
 }
 .composer-input::placeholder { color: #b3afa4; }
