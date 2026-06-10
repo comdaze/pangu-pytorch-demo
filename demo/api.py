@@ -81,6 +81,7 @@ def analysis_prompt(result):
     return (
         f"风电场：{f['id']}，装机{f['capacity_mw']:.0f}MW，{f['turbines']}台{f['turbine_model']}，"
         f"轮毂{f['hub_height_m']}m，海拔{f['elevation_m']}m，地形：{f['terrain']}。\n"
+        f"预报模型：Pangu {result.get('pangu_model','—')}；降尺度 {result.get('downscale_method','—')}。\n"
         f"选用气压层：{fp._lname(result['level'])}（按海拔自动选取）。\n"
         f"初始场日期：{result['init_date']}，预报时长：{result['horizon_days']}天。\n"
         f"逐日预报：\n" + "\n".join(lines) + "\n"
@@ -186,6 +187,8 @@ def chat_stream(messages):
     result = box["result"]
 
     yield "- `100%`  生成气象图与图表…\n"
+    yield (f"\n> **模型链路**：Pangu = {result.get('pangu_model','—')}；"
+           f"降尺度 = {result.get('downscale_method','—')}\n")
     for chunk in forecast_figures_md(result):
         yield chunk
 

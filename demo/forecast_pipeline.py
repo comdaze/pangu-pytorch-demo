@@ -67,9 +67,18 @@ def run_forecast(farm, horizon_days=7, init_date=None, factor=5, progress=None):
     level, level_details = wp.select_wind_level(
         farm["elevation_m"], farm["hub_height_m"], eng.PANGU_WIND_LEVELS)
 
+    # Use our Pre-2019 VAAWM fine-tuned Pangu (trained 2016-2017) when present;
+    # otherwise fall back to the official pretrained (zero-shot) weights.
+    if eng.pre2019_available():
+        variant = "vaawm_pre2019"
+        model_label = "Pre-2019 VAAWM 微调 (2016-2017训练)"
+    else:
+        variant = "zeroshot"
+        model_label = "官方预训练 (zero-shot)"
+
     if progress:
-        progress(f"加载 Pangu 模型与常量（{device}）", 0.02)
-    model = eng.load_model(device, "zeroshot")
+        progress(f"加载 Pangu 模型：{model_label}（{device}）", 0.02)
+    model = eng.load_model(device, variant)
     aux = eng.load_aux(device)
 
     cur_u, cur_s = eng._state_at(init_date, device)
@@ -163,6 +172,7 @@ def run_forecast(farm, horizon_days=7, init_date=None, factor=5, progress=None):
         "field_snaps": field_snaps,
         "horizon_days": horizon_days,
         "downscale_method": downscale_method,
+        "pangu_model": model_label,
     }
 
 

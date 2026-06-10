@@ -91,18 +91,33 @@ _AUX = None
 
 FINETUNED_PATH = os.path.join(cfg.PG_OUT_PATH, "finetune_vaawm",
                               str(cfg.PG.HORIZON), "vaawm_finetuned.pth")
+# Pre-2019 protocol VAAWM model (trained 2016-2017, validated on 2019, held-out
+# test 2018). This is the multi-month model that took ~8h to train.
+PRE2019_PATH = os.path.join(cfg.PG_OUT_PATH, "finetune_vaawm",
+                            str(cfg.PG.HORIZON), "vaawm_pre2019.pth")
+
+_VARIANT_CKPT = {
+    "vaawm": FINETUNED_PATH,
+    "vaawm_pre2019": PRE2019_PATH,
+}
 
 
 def finetuned_available():
     return os.path.exists(FINETUNED_PATH)
 
 
+def pre2019_available():
+    return os.path.exists(PRE2019_PATH)
+
+
 def load_model(device, variant="zeroshot"):
-    """variant: 'zeroshot' (official pretrained) or 'vaawm' (our small fine-tune)."""
+    """variant: 'zeroshot' (official pretrained), 'vaawm' (small fine-tune) or
+    'vaawm_pre2019' (the multi-month Pre-2019 VAAWM model)."""
     if variant not in _MODELS:
         m = PanguModel(device=device).to(device)
-        if variant == "vaawm":
-            ckpt = torch.load(FINETUNED_PATH, weights_only=True, map_location=device)
+        ckpt_path = _VARIANT_CKPT.get(variant)
+        if ckpt_path is not None:
+            ckpt = torch.load(ckpt_path, weights_only=True, map_location=device)
         else:
             ckpt = torch.load(cfg.PG.BENCHMARK.PRETRAIN_24_torch,
                               weights_only=True, map_location=device)
