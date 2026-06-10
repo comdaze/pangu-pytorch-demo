@@ -1,66 +1,80 @@
-# PanGu Weather Forecast GUI Demo
+# 风眼 · 风电功率预报智能助手 (Demo)
 
-这是一个基于Streamlit的PanGu-Weather模型可视化演示应用。该应用允许用户以交互方式探索PanGu-Weather模型的天气预报能力。
+一个面向风电场的对话式功率预报演示：Claude 风格聊天界面，由 Bedrock Claude
+以 **function calling** 驱动，按需运行端到端预报管线并流式输出专业气象图与分析。
 
-## 功能特点
+> 注：早期基于 Streamlit 的界面（`app.py` / `chat_app.py`）已**弃用并移除**，
+> 现在前端是 React (assistant-ui)，后端是 FastAPI，单服务统一托管并带登录鉴权。
 
-- 选择不同的预测时长模型（1小时、3小时、6小时、24小时）
-- 可视化高空和地表天气预报结果
-- 支持多种气象变量的可视化（温度、风速、气压等）
-- 计算和展示预测性能指标（RMSE等）
-- 导出预测结果和可视化图表
+## 端到端链路
 
-## 安装与运行
+```
+ERA5 初始场（最接近当天季节的可用再分析场）
+  → Pangu-Weather 推理
+       · 逐日(24h)：混合推理 Hybrid（目标风场取 VAAWM 微调，余取 zero-shot 基座，论文§3.4）
+       · 逐 6/3/1 小时：官方 zero-shot Pangu-{6,3,1}h
+  → CorrDiff 生成式降尺度（regression + diffusion，SageMaker 训练，25km→5km）
+  → 按风场海拔/轮毂高度选气压层(10m/1000/925/850hPa) 取 U/V
+  → 风机功率曲线(IEC) → 出力 / 容量因子 / 发电量
+```
 
-### 前提条件
+时间分辨率、风场、时长均由 LLM 从多轮对话上下文中推断（工具参数
+`farm_query` / `horizon_days` / `step_hours`）。
 
-- Python 3.8+
-- PanGu-Weather模型及其依赖项
+## 架构与文件
 
-### 安装步骤
+后端 / 管线
+- `api.py` — FastAPI 服务：Bedrock Claude 工具调用编排、流式进度+图、托管前端静态、HTTP Basic Auth、`/healthz`。
+- `forecast_pipeline.py` — 预报管线（混合/zero-shot 自回归、CorrDiff 降尺度、选层、功率换算、出图）。
+- `inference_engine.py` — Pangu 模型加载（zeroshot / vaawm / vaawm_pre2019 / 各时效 zs）、aux 常量、ERA5 初始场。
+- `corrdiff_infer.py` — CorrDiff 两阶段推理封装。
+- `wind_power.py` — 选层、轮毂外推、IEC 功率曲线、降尺度接口。
+- `wind_farms.py` — 新疆/浙江风电场清单（mock）。
+- `llm.py` — Bedrock Claude (Converse) 封装。
+- `paper_data.py` / `regions.py` — 区域掩码与论文相关数据。
 
-1. 确保已安装PanGu-Weather项目的所有依赖项
-2. 安装Demo所需的额外依赖项：
+前端
+- `web/` — Vite + React + assistant-ui（Claude 主题）。详见 `web/README.md`。
+
+训练 / 数据（独立脚本，非服务运行所需）
+- `run_pipeline_pre2019.py` — 论文 Pre-2019 协议 VAAWM 微调全流程。
+- `finetune_vaawm.py` / `finetune_vaawm_paper.py` — VAAWM 微调实验。
+- `fetch_era5_upper.py` / `run_pipeline.py` — ERA5 数据获取与流程脚本。
+
+运维
+- `ops/` — S3 备份/恢复脚本、systemd 单元、部署文档（见 `ops/DEPLOY.md`）。
+
+## 本地运行
+
+后端（GPU 推理；`LD_LIBRARY_PATH` 修复 matplotlib 的 libstdc++）：
 
 ```bash
-cd /path/to/pangu-pytorch-demo/demo
+cd demo
 pip install -r requirements.txt
+CUDA_VISIBLE_DEVICES=0 LD_LIBRARY_PATH=/opt/conda/lib \
+  FENGYAN_USER=admin FENGYAN_PASS=<your-pass> \
+  uvicorn api:app --host 0.0.0.0 --port 8000
 ```
 
-### 运行应用
+前端开发态（/api 代理到 8000）：
 
 ```bash
-cd /path/to/pangu-pytorch-demo/demo
-streamlit run app.py
+cd demo/web && npm install && npm run dev    # http://localhost:5173
 ```
 
-应用将在本地启动，并自动在默认浏览器中打开。
+生产态（单服务托管前端 + API）：
 
-## 使用指南
+```bash
+cd demo/web && npm run build                 # 产物 dist/ 由 api.py 自动托管
+# 浏览器访问 http://<host>:8000 ，用上面的用户名/密码登录
+```
 
-1. **选择数据**：在侧边栏中指定数据路径
-2. **选择模型**：选择预测时长（1小时、3小时、6小时或24小时）
-3. **设置时间**：选择预测的起始日期和时间
-4. **选择变量**：选择要可视化的气象变量和层级
-5. **运行预测**：点击"运行预测"按钮开始预测
-6. **查看结果**：预测完成后，可以查看预测结果和实际数据的对比
-7. **查看指标**：展开"性能指标"部分查看预测性能
-8. **导出结果**：在"结果导出"部分下载预测图像或数据
+## 部署（长期运行 + ALB + 登录）
 
-## 注意事项
+见 `ops/DEPLOY.md`：systemd 自启/重启、实例临时盘被清时从 S3 自动恢复、
+ALB(:80)→实例(:8000，健康检查 `/healthz`)、HTTP Basic Auth 登录。
 
-- 当前演示版本使用模拟数据。要使用真实数据，请确保已下载并配置好ERA5数据集
-- 确保已正确设置`era5_data/config.py`中的数据路径
-- 对于大型数据集，预测过程可能需要较长时间
+## 参考
 
-## 自定义与扩展
-
-如需自定义或扩展此Demo，可以修改以下文件：
-
-- `app.py`：主应用逻辑和用户界面
-- `utils.py`：辅助函数，包括可视化和数据处理
-
-## 参考资料
-
-- Bi et al. (2023) - Pangu-Weather: A 3D High-Resolution Model for Fast and Accurate Global Weather Forecast
-- [PanGu-Weather GitHub仓库](https://github.com/198808xc/Pangu-Weather)
+- Bi et al. (2022) Pangu-Weather；NVIDIA PhysicsNeMo CorrDiff；
+  VAAWM（变量-区域自适应加权 + 混合推理）见仓库内论文 PDF。

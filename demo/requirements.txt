@@ -1,8 +1,13 @@
-streamlit>=1.22.0
+# Backend (FastAPI service) + inference pipeline
+fastapi>=0.110
+uvicorn>=0.27
+pydantic>=2.0
+boto3>=1.34            # Bedrock Claude (tool calling)
 matplotlib>=3.5.0
 cartopy>=0.20.0
 numpy>=1.20.0
-torch>=1.10.0
+torch>=2.0
+onnx>=1.14            # only needed to (re)convert Pangu ONNX -> torch
 onnxruntime>=1.10.0
 xarray>=0.20.0
 netCDF4>=1.5.0
