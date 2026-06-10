@@ -35,3 +35,7 @@ demo/web/node_modules/
 demo/web/dist/
 demo/web/.vite/
 demo/web/*.png
+
+# Deployment doc & secrets (contain credentials / infra ids)
+demo/ops/DEPLOY.md
+demo/ops/fengyan.env

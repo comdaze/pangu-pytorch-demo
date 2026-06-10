@@ -9,8 +9,9 @@ User=ubuntu
 WorkingDirectory=/home/ubuntu/pangu-pytorch-demo/demo
 Environment=CUDA_VISIBLE_DEVICES=0
 Environment=LD_LIBRARY_PATH=/opt/conda/lib
-Environment=FENGYAN_USER=admin
-Environment=FENGYAN_PASS=CHANGE_ME_VIA_ENV
+# Login credentials are read from a gitignored env file (not committed):
+#   demo/ops/fengyan.env  ->  FENGYAN_USER=... / FENGYAN_PASS=...
+EnvironmentFile=-/home/ubuntu/pangu-pytorch-demo/demo/ops/fengyan.env
 ExecStart=/opt/conda/bin/uvicorn api:app --host 0.0.0.0 --port 8000
 Restart=always
 RestartSec=5
