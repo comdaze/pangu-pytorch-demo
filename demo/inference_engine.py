@@ -99,6 +99,19 @@ PRE2019_PATH = os.path.join(cfg.PG_OUT_PATH, "finetune_vaawm",
 _VARIANT_CKPT = {
     "vaawm": FINETUNED_PATH,
     "vaawm_pre2019": PRE2019_PATH,
+    # zero-shot official pretrained models per forecast horizon (hours)
+    "zs1": cfg.PG.BENCHMARK.PRETRAIN_1_torch,
+    "zs3": cfg.PG.BENCHMARK.PRETRAIN_3_torch,
+    "zs6": cfg.PG.BENCHMARK.PRETRAIN_6_torch,
+    "zs24": cfg.PG.BENCHMARK.PRETRAIN_24_torch,
+}
+
+# Map forecast horizon (h) -> zero-shot torch checkpoint path.
+ZS_HORIZON_CKPT = {
+    1: cfg.PG.BENCHMARK.PRETRAIN_1_torch,
+    3: cfg.PG.BENCHMARK.PRETRAIN_3_torch,
+    6: cfg.PG.BENCHMARK.PRETRAIN_6_torch,
+    24: cfg.PG.BENCHMARK.PRETRAIN_24_torch,
 }
 
 
@@ -108,6 +121,11 @@ def finetuned_available():
 
 def pre2019_available():
     return os.path.exists(PRE2019_PATH)
+
+
+def zeroshot_horizons_available():
+    """Return the sorted list of horizons (h) whose zero-shot torch model exists."""
+    return sorted(h for h, p in ZS_HORIZON_CKPT.items() if os.path.exists(p))
 
 
 def load_model(device, variant="zeroshot"):
@@ -132,6 +150,24 @@ def load_aux(device):
     if _AUX is None:
         _AUX = utils_data.loadAllConstants(device=device)
     return _AUX
+
+
+_AUX_H = {}
+
+
+def load_aux_h(device, horizon):
+    """Aux constants with the constant_maps mask for a specific horizon (h).
+
+    All other constants are horizon-independent; only constantMask{h}.npy differs.
+    """
+    if horizon not in _AUX_H:
+        import numpy as _np
+        base = dict(load_aux(device))  # shallow copy
+        mp = os.path.join(cfg.PG_INPUT_PATH, "aux_data", f"constantMask{horizon}.npy")
+        base["constant_maps"] = torch.from_numpy(
+            _np.load(mp).astype("float32")).to(device)
+        _AUX_H[horizon] = base
+    return _AUX_H[horizon]
 
 
 def run_inference(input_date, device=None, variant="zeroshot"):

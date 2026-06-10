@@ -102,8 +102,15 @@ def run_forecast(farm, horizon_days=7, init_date=None, factor=5, progress=None):
 
     for k in range(1, horizon_days + 1):
         if progress:
-            step_desc = ("混合推理" if use_hybrid else "Pangu") + \
-                f" 第 {k}/{horizon_days} 步（+{k*24}h）自回归预报"
+            if use_hybrid:
+                step_desc = (
+                    f"混合推理 第 {k}/{horizon_days} 步 (+{k*24}h)："
+                    f"① 基座 Pangu-24h(zero-shot) 预报全场(z/q/t/msl/t2m)；"
+                    f"② {ft_label} 预报目标风场(u/v·u10/v10)；"
+                    f"③ 融合(风场取微调，余取基座)→喂回下一步"
+                )
+            else:
+                step_desc = f"Pangu-24h(zero-shot) 第 {k}/{horizon_days} 步 (+{k*24}h) 自回归预报"
             progress(step_desc, 0.05 + 0.7 * k / horizon_days)
         with torch.no_grad():
             ob, osb = base(cur_u, cur_s, aux["weather_statistics"],
