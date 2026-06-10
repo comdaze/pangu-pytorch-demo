@@ -1,16 +1,26 @@
 import {
   AssistantRuntimeProvider,
   useLocalRuntime,
+  useAssistantRuntime,
   ThreadPrimitive,
   MessagePrimitive,
   ComposerPrimitive,
+  ThreadListPrimitive,
+  ThreadListItemPrimitive,
 } from "@assistant-ui/react";
+import { useEffect } from "react";
 import { MarkdownTextPrimitive } from "@assistant-ui/react-markdown";
 import remarkGfm from "remark-gfm";
 import { backendAdapter } from "./runtime";
 
 const MarkdownText = () => (
-  <MarkdownTextPrimitive remarkPlugins={[remarkGfm]} smooth={false} />
+  <MarkdownTextPrimitive
+    remarkPlugins={[remarkGfm]}
+    smooth={false}
+    /* react-markdown strips data: URIs by default -> keep them so the
+       inline base64 PNG figures from the backend render */
+    urlTransform={(url) => url}
+  />
 );
 
 const EXAMPLES = [
@@ -26,6 +36,7 @@ const CHIP_LABELS = [
   "🌊 浙江·大陈岛 7天",
 ];
 
+/* ----------------------------- messages ----------------------------- */
 function UserMessage() {
   return (
     <MessagePrimitive.Root className="msg user">
@@ -47,6 +58,7 @@ function AssistantMessage() {
   );
 }
 
+/* ----------------------------- composer ----------------------------- */
 function Composer() {
   return (
     <ComposerPrimitive.Root className="composer">
@@ -54,8 +66,11 @@ function Composer() {
         className="composer-input"
         placeholder="向「风眼」提问，例如：新疆十二间房风电场未来7天的功率曲线"
         autoFocus
+        rows={1}
       />
-      <ComposerPrimitive.Send className="composer-send">↑</ComposerPrimitive.Send>
+      <ComposerPrimitive.Send className="composer-send" aria-label="发送">
+        ↑
+      </ComposerPrimitive.Send>
     </ComposerPrimitive.Root>
   );
 }
@@ -78,17 +93,50 @@ function Chips() {
   );
 }
 
+/* ----------------------------- sidebar ------------------------------ */
+function ThreadListItem() {
+  return (
+    <ThreadListItemPrimitive.Root className="thread-item">
+      <ThreadListItemPrimitive.Trigger className="thread-item-trigger">
+        <ThreadListItemPrimitive.Title fallback="新对话" />
+      </ThreadListItemPrimitive.Trigger>
+      <ThreadListItemPrimitive.Archive className="thread-item-archive" aria-label="归档">
+        ✕
+      </ThreadListItemPrimitive.Archive>
+    </ThreadListItemPrimitive.Root>
+  );
+}
+
+function Sidebar() {
+  return (
+    <aside className="sidebar">
+      <div className="brand">
+        <span className="spark">✦</span> 风眼
+        <div className="brand-sub">风电功率预报助手</div>
+      </div>
+      <ThreadListPrimitive.Root className="thread-list">
+        <ThreadListPrimitive.New className="new-chat">＋ 新对话</ThreadListPrimitive.New>
+        <div className="thread-list-label">历史对话</div>
+        <ThreadListPrimitive.Items components={{ ThreadListItem }} />
+      </ThreadListPrimitive.Root>
+      <div className="sidebar-foot">Claude 驱动 · Pangu × CorrDiff</div>
+    </aside>
+  );
+}
+
+/* ------------------------------ thread ------------------------------ */
 function Thread() {
   return (
     <ThreadPrimitive.Root className="thread">
       <ThreadPrimitive.Viewport className="viewport">
         <ThreadPrimitive.Empty>
-          <div className="hero">
+          <div className="home">
             <div className="hero-title">
               <span className="spark">✦</span>今天想预报哪个风电场？
             </div>
-            <div className="hero-sub">
-              基于 ERA5 → Pangu-Weather → CorrDiff 降尺度 → 功率曲线的端到端风电功率预报
+            <div className="home-composer">
+              <Composer />
+              <Chips />
             </div>
           </div>
         </ThreadPrimitive.Empty>
@@ -96,30 +144,64 @@ function Thread() {
         <ThreadPrimitive.Messages
           components={{ UserMessage, AssistantMessage }}
         />
-        <div className="viewport-spacer" />
       </ThreadPrimitive.Viewport>
 
-      <div className="bottom">
-        <Composer />
-        <Chips />
-      </div>
+      <ThreadPrimitive.If empty={false}>
+        <div className="bottom">
+          <Composer />
+          <Chips />
+        </div>
+      </ThreadPrimitive.If>
     </ThreadPrimitive.Root>
   );
+}
+
+/* names new threads after their first user message (Claude-style history) */
+function AutoTitle() {
+  const runtime = useAssistantRuntime();
+  useEffect(() => {
+    const titled = new Set<string>();
+    const sync = () => {
+      try {
+        const item = runtime.threads.mainItem.getState();
+        if (!item?.id || titled.has(item.id) || item.title) return;
+        const msgs = runtime.threads.main.getState().messages as any[];
+        const firstUser = msgs.find((m) => m.role === "user");
+        if (!firstUser) return;
+        const txt = (firstUser.content || [])
+          .filter((c: any) => c.type === "text")
+          .map((c: any) => c.text)
+          .join("")
+          .trim();
+        if (txt) {
+          titled.add(item.id);
+          runtime.threads.mainItem.rename(txt.length > 24 ? txt.slice(0, 24) + "…" : txt);
+        }
+      } catch {
+        /* ignore */
+      }
+    };
+    const u1 = runtime.threads.main.subscribe(sync);
+    const u2 = runtime.threads.subscribe(sync);
+    sync();
+    return () => {
+      u1?.();
+      u2?.();
+    };
+  }, [runtime]);
+  return null;
 }
 
 export default function App() {
   const runtime = useLocalRuntime(backendAdapter);
   return (
     <AssistantRuntimeProvider runtime={runtime}>
+      <AutoTitle />
       <div className="app">
-        <header className="topbar">
-          <div className="logo">
-            <span className="spark">✦</span> 风眼{" "}
-            <span className="logo-sub">风电功率预报助手</span>
-          </div>
-          <div className="topbar-right">Claude 驱动 · Pangu × CorrDiff</div>
-        </header>
-        <Thread />
+        <Sidebar />
+        <main className="main">
+          <Thread />
+        </main>
       </div>
     </AssistantRuntimeProvider>
   );
