@@ -121,12 +121,17 @@ def run_forecast(farm, horizon_days=7, init_date=None, factor=5, progress=None):
             sv, _ = crop_bbox(vfield, farm["lat"], farm["lon"])
             fine = None
             if use_corrdiff:
+                if progress:
+                    progress(f"CorrDiff 降尺度（regression+diffusion，18步采样，+{k*24}h，25km→5km）",
+                             0.05 + 0.7 * k / horizon_days)
                 try:
                     fine = cdi.downscale_speed(su, sv, device=device)
                 except Exception as e:
                     print(f"[forecast] CorrDiff downscale failed ({e}); using bilinear", flush=True)
                     fine = None
             if fine is None:
+                if progress:
+                    progress(f"双线性插值降尺度（占位，+{k*24}h）", 0.05 + 0.7 * k / horizon_days)
                 sub = np.sqrt(su ** 2 + sv ** 2)
                 fine = wp.downscale(sub, factor=factor, method="bilinear")
             field_snaps[k] = (fine, extent)
