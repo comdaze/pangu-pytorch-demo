@@ -6,6 +6,9 @@
   --ink: #2b2a27;
   --muted: #73726c;
   --border: #e6e2d8;
+  /* conversation/content column: ~1/3 of viewport on wide screens, with a
+     sensible floor/cap so it stays readable on laptops and ultrawides */
+  --col: clamp(720px, 34vw, 1180px);
 }
 
 * { box-sizing: border-box; }
@@ -65,12 +68,12 @@ body {
 .thread { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .viewport { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
 
-.col { width: 100%; max-width: 740px; margin: 0 auto; }
+.col { width: 100%; max-width: var(--col); margin: 0 auto; }
 
 /* ---- home / empty state (Claude.ai landing) ---- */
 .home {
   flex: 1; display: flex; flex-direction: column; justify-content: center;
-  align-items: center; width: 100%; max-width: 720px; margin: 0 auto;
+  align-items: center; width: 100%; max-width: var(--col); margin: 0 auto;
   padding: 0 1rem; min-height: 70vh;
 }
 .hero-title {
@@ -84,7 +87,7 @@ body {
 .aui-thread-viewport-spacer { width: 100%; }
 .msg {
   display: flex; gap: .85rem; margin: 1.1rem auto; align-items: flex-start;
-  width: 100%; max-width: 740px; padding: 0 1rem;
+  width: 100%; max-width: var(--col); padding: 0 1rem;
 }
 .msg.user { justify-content: flex-end; }
 .avatar {
@@ -123,7 +126,7 @@ body {
   border-top: 1px solid var(--border); background: var(--bg);
   padding: .8rem 1rem 1rem;
 }
-.bottom .composer, .bottom .chips { max-width: 740px; margin-left: auto; margin-right: auto; }
+.bottom .composer, .bottom .chips { max-width: var(--col); margin-left: auto; margin-right: auto; }
 
 /* ---- composer (shared) ---- */
 .composer {

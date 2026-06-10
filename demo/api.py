@@ -17,8 +17,10 @@ Run (GPU inference, matplotlib libstdc++ fix):
 import base64
 import io
 import os
+import queue
 import re
 import sys
+import threading
 
 import matplotlib
 matplotlib.use("Agg")
@@ -144,15 +146,46 @@ def chat_stream(messages):
             yield delta
         return
 
-    # forecast flow: intro -> figures -> analysis
+    # forecast flow: intro -> live progress -> figures -> analysis
     intro_user = (f"用户请求：{farm_name} 未来{horizon}天的功率预报。"
                   "请用2-4句话专业说明你将运行的预报链路（不要给数值）。")
     for delta in llm.stream_chat([{"role": "user", "content": intro_user}], SYSTEM,
                                  max_tokens=400):
         yield delta
 
-    yield "\n\n---\n"
-    result = fp.run_forecast(info, horizon_days=horizon)
+    yield "\n\n---\n\n##### ⏳ 运行进度\n\n"
+
+    # run the (blocking) pipeline in a worker thread and stream its progress
+    # callbacks live, so the user sees each step instead of waiting silently.
+    q: "queue.Queue" = queue.Queue()
+    box = {}
+
+    def prog(stage, frac):
+        q.put(f"- `{int(frac * 100):>3d}%`  {stage}\n")
+
+    def worker():
+        try:
+            box["result"] = fp.run_forecast(info, horizon_days=horizon, progress=prog)
+        except Exception as e:  # noqa: BLE001
+            box["error"] = repr(e)
+        finally:
+            q.put(None)
+
+    t = threading.Thread(target=worker, daemon=True)
+    t.start()
+    while True:
+        item = q.get()
+        if item is None:
+            break
+        yield item
+    t.join()
+
+    if "error" in box:
+        yield f"\n> ⚠️ 预报管线出错：{box['error']}\n"
+        return
+    result = box["result"]
+
+    yield "- `100%`  生成气象图与图表…\n"
     for chunk in forecast_figures_md(result):
         yield chunk
 
