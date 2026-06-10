@@ -16,6 +16,7 @@ Run (GPU inference, matplotlib libstdc++ fix):
 """
 import base64
 import io
+import json
 import os
 import queue
 import re
@@ -134,32 +135,50 @@ class ChatRequest(BaseModel):
     messages: list  # [{role, content}]
 
 
-def chat_stream(messages):
-    user_text = ""
-    for m in reversed(messages):
-        if m["role"] == "user":
-            user_text = m["content"]
-            break
+FORECAST_TOOL = {
+    "toolSpec": {
+        "name": "run_wind_power_forecast",
+        "description": (
+            "运行端到端风电功率预报管线：ERA5 初始场 → Pangu-Weather 混合推理（逐日 24h，"
+            "目标风场取 VAAWM 微调、其余取 zero-shot 基座）→ CorrDiff 降尺度 → 按海拔选气压层 "
+            "→ 功率曲线，产出逐日风速/容量因子/出力/发电量及多张专业气象图。"
+            "当用户想要某风电场的功率、出力、发电量、风速或功率曲线预报时调用此工具。"
+            "请结合多轮对话上下文推断风场名称与预报时长。"
+        ),
+        "inputSchema": {"json": {
+            "type": "object",
+            "properties": {
+                "farm_query": {
+                    "type": "string",
+                    "description": "风电场名称或关键词，例如：十二间房、达坂城、小草湖、三塘湖、括苍山、大陈岛、苍南。",
+                },
+                "horizon_days": {
+                    "type": "integer",
+                    "description": "预报时长（天），范围 1-10。若用户用小时表述（如 8 小时）请折算并向上取整到天，最少 1 天。默认 7。",
+                },
+            },
+            "required": ["farm_query"],
+        }},
+    }
+}
 
-    farm_name, info, horizon = detect_intent(user_text)
-    if info is None:
-        for delta in llm.stream_chat(messages, SYSTEM):
-            yield delta
-        return
+_IMG_RE = re.compile(r"!\[\]\(data:image/[^)]+\)")
 
-    # forecast flow: intro -> live progress -> figures -> analysis
-    intro_user = (f"用户请求：{farm_name} 未来{horizon}天的功率预报。"
-                  "请用2-4句话专业说明你将运行的预报链路（不要给数值）。")
-    for delta in llm.stream_chat([{"role": "user", "content": intro_user}], SYSTEM,
-                                 max_tokens=400):
-        yield delta
 
-    yield "\n\n---\n\n##### ⏳ 运行进度\n\n"
+def _sanitize(text):
+    """Strip large base64 image data URIs from history before sending to the LLM."""
+    return _IMG_RE.sub("［气象图］", text or "")
 
-    # run the (blocking) pipeline in a worker thread and stream its progress
-    # callbacks live, so the user sees each step instead of waiting silently.
+
+def _to_bedrock(messages):
+    return [{"role": m["role"], "content": [{"text": _sanitize(m["content"])}]}
+            for m in messages]
+
+
+def _run_forecast_stream(info, horizon, box):
+    """Yield markdown (live progress + model chain + figures); store result in box."""
+    yield "\n\n##### ⏳ 运行进度\n\n"
     q: "queue.Queue" = queue.Queue()
-    box = {}
 
     def prog(stage, frac):
         q.put(f"- `{int(frac * 100):>3d}%`  {stage}\n")
@@ -185,17 +204,98 @@ def chat_stream(messages):
         yield f"\n> ⚠️ 预报管线出错：{box['error']}\n"
         return
     result = box["result"]
-
     yield "- `100%`  生成气象图与图表…\n"
     yield (f"\n> **模型链路**：Pangu = {result.get('pangu_model','—')}；"
            f"降尺度 = {result.get('downscale_method','—')}\n")
     for chunk in forecast_figures_md(result):
         yield chunk
 
+
+def _stream_text(resp):
+    for ev in resp["stream"]:
+        if "contentBlockDelta" in ev:
+            d = ev["contentBlockDelta"]["delta"]
+            if "text" in d:
+                yield d["text"]
+
+
+def chat_stream(messages):
+    """Tool-calling chat: the LLM decides (from multi-turn context) whether to call
+    the forecast tool, extracting farm + horizon itself. Fixes brittle keyword
+    matching and supports follow-up turns like just naming the farm."""
+    conv = _to_bedrock(messages)
+    cl = llm.client()
+    resp = cl.converse_stream(
+        modelId=llm.MODEL_ID,
+        messages=conv,
+        system=[{"text": SYSTEM}],
+        toolConfig={"tools": [FORECAST_TOOL]},
+        inferenceConfig={"maxTokens": 1200, "temperature": 0.4},
+    )
+
+    pre_text = ""
+    tool_use = None
+    tool_input_json = ""
+    for ev in resp["stream"]:
+        if "contentBlockStart" in ev:
+            st = ev["contentBlockStart"]["start"]
+            if "toolUse" in st:
+                tool_use = {"toolUseId": st["toolUse"]["toolUseId"],
+                            "name": st["toolUse"]["name"]}
+                tool_input_json = ""
+        elif "contentBlockDelta" in ev:
+            d = ev["contentBlockDelta"]["delta"]
+            if "text" in d:
+                pre_text += d["text"]
+                yield d["text"]
+            elif "toolUse" in d:
+                tool_input_json += d["toolUse"].get("input", "")
+
+    if tool_use is None:
+        return  # plain chat answer already streamed
+
+    try:
+        args = json.loads(tool_input_json or "{}")
+    except Exception:
+        args = {}
+    farm_query = str(args.get("farm_query", ""))
+    horizon = max(1, min(int(args.get("horizon_days", 7) or 7), 10))
+    farm_name, info = wf.find_farm(farm_query)
+
+    assistant_turn = ([{"text": pre_text}] if pre_text.strip() else []) + [
+        {"toolUse": {"toolUseId": tool_use["toolUseId"], "name": tool_use["name"],
+                     "input": args}}]
+    conv.append({"role": "assistant", "content": assistant_turn})
+
+    if info is None:
+        conv.append({"role": "user", "content": [{"toolResult": {
+            "toolUseId": tool_use["toolUseId"],
+            "content": [{"text": f"未匹配到风场“{farm_query}”。可选风场：\n{wf.farms_brief()}"}],
+            "status": "error"}}]})
+        yield from _stream_text(cl.converse_stream(
+            modelId=llm.MODEL_ID, messages=conv, system=[{"text": SYSTEM}],
+            toolConfig={"tools": [FORECAST_TOOL]},
+            inferenceConfig={"maxTokens": 600, "temperature": 0.4}))
+        return
+
+    # run the pipeline (stream live progress + figures to the UI)
+    box = {}
+    for chunk in _run_forecast_stream(info, horizon, box):
+        yield chunk
+    if "result" not in box:
+        return
+    result = box["result"]
+
+    # feed a compact numeric summary back as the tool result -> expert analysis
+    conv.append({"role": "user", "content": [{"toolResult": {
+        "toolUseId": tool_use["toolUseId"],
+        "content": [{"text": analysis_prompt(result)}]}}]})
+
     yield "\n\n##### 🧭 专家分析\n\n"
-    for delta in llm.stream_chat([{"role": "user", "content": analysis_prompt(result)}],
-                                 SYSTEM, max_tokens=1200):
-        yield delta
+    yield from _stream_text(cl.converse_stream(
+        modelId=llm.MODEL_ID, messages=conv, system=[{"text": SYSTEM}],
+        toolConfig={"tools": [FORECAST_TOOL]},
+        inferenceConfig={"maxTokens": 1200, "temperature": 0.4}))
 
 
 @app.get("/api/farms")
