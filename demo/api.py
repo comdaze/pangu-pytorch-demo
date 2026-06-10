@@ -57,6 +57,7 @@ SYSTEM = f"""你是「风眼」——一个面向风电场的专业气象与功�
 
 规则：
 - 若用户询问某风电场的功率/出力/风速预报，确认风场与时长后，简要说明你将运行的预报流程（2-4句，专业）。不要编造未运行的数值。
+- 关于初始场：系统会自动选取"最接近当前日期(月-日)"的可用 ERA5 再分析场作为初始场（历史档案 2016–2019，实时 NWP 数据源尚未接入）。用户问"今天/现在/未来N天"时正常预报即可，但不要声称这是实时观测或当前真实大气；若被追问，诚实说明初始场取自最接近当季的历史再分析。
 - 闲聊或概念问题，正常专业作答。
 - 不要杜撰不在清单中的风电场；若用户问的风场不存在，礼貌说明并列出可选风场。
 """
@@ -224,7 +225,9 @@ def _run_forecast_stream(info, horizon, box, step_hours=24):
         return
     result = box["result"]
     yield "- `100%`  生成气象图与图表…\n"
-    yield (f"\n> **模型链路**：Pangu = {result.get('pangu_model','—')}；"
+    yield (f"\n> **初始场**：ERA5 {result.get('init_date','—')}"
+           f"（{result.get('init_note','')}）\n>\n"
+           f"> **模型链路**：Pangu = {result.get('pangu_model','—')}；"
            f"降尺度 = {result.get('downscale_method','—')}\n")
     for chunk in forecast_figures_md(result):
         yield chunk

@@ -45,14 +45,38 @@ def crop_bbox(field, lat, lon, dlat=2.5, dlon=3.0):
     return field[r0:r1 + 1, c0:c1 + 1], (lon - dlon, lon + dlon, lat - dlat, lat + dlat)
 
 
-def pick_init_date():
-    """Default forecast t0: prefer an active-weather date, else latest available."""
-    avail = set(eng._all_upper_dates())
-    for pref in ["20180401", "20180701"]:
-        if pref in avail:
-            return pref
-    dates = sorted(avail)
-    return dates[-1] if dates else "20190701"
+def _available_init_dates():
+    """Dates for which we have BOTH input and upper ERA5 initial fields."""
+    return sorted(set(eng.list_input_dates()) & set(eng._all_upper_dates()))
+
+
+def pick_init_date(as_of=None):
+    """Pick the analysis date closest in season to `as_of` (default: today).
+
+    The demo only has historical ERA5 initial fields (2016-2019); a live NWP
+    feed is not connected. So to honour "today's forecast" we initialise from
+    the available reanalysis field whose month/day is closest to today's,
+    preferring the most recent year. This keeps the seasonal regime correct.
+    """
+    avail = _available_init_dates()
+    if not avail:
+        return "20190701"
+    today = as_of or dt.date.today()
+    # exact month-day match -> most recent year
+    mmdd = today.strftime("%m%d")
+    same = [d for d in avail if d[4:] == mmdd]
+    if same:
+        return sorted(same)[-1]
+    # otherwise nearest by day-of-year (season), preferring the most recent year
+    best, best_key = None, None
+    for d in avail:
+        dd = dt.datetime.strptime(d, "%Y%m%d").date()
+        diff = abs((dd.replace(year=2000) - today.replace(year=2000)).days)
+        diff = min(diff, 365 - diff)
+        key = (-diff, d)  # smaller diff first, then most recent date
+        if best_key is None or key > best_key:
+            best, best_key = d, key
+    return best
 
 
 def run_forecast(farm, horizon_days=7, init_date=None, factor=5, progress=None,
@@ -67,7 +91,13 @@ def run_forecast(farm, horizon_days=7, init_date=None, factor=5, progress=None,
     progress: optional callable(stage_str, frac) for UI streaming.
     """
     device = eng.get_device()  # 'cpu' when CUDA hidden
-    init_date = init_date or pick_init_date()
+    as_of = dt.date.today()
+    if init_date is None:
+        init_date = pick_init_date(as_of)
+        init_note = (f"最接近当前日期 {as_of.strftime('%m-%d')} 的可用 ERA5 再分析场"
+                     f"（历史档案 2016–2019；实时 NWP 数据源未接入）")
+    else:
+        init_note = "用户指定的初始场日期"
 
     step_hours = step_hours if step_hours in (1, 3, 6, 24) else 24
     total_hours = max(1, int(horizon_days)) * 24
@@ -219,6 +249,8 @@ def run_forecast(farm, horizon_days=7, init_date=None, factor=5, progress=None,
         "horizon_days": horizon_days,
         "step_hours": step_hours,
         "n_steps": n_steps,
+        "init_note": init_note,
+        "as_of": as_of.strftime("%Y-%m-%d"),
         "downscale_method": downscale_method,
         "pangu_model": model_label,
     }
