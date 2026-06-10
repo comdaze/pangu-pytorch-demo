@@ -67,18 +67,27 @@ def run_forecast(farm, horizon_days=7, init_date=None, factor=5, progress=None):
     level, level_details = wp.select_wind_level(
         farm["elevation_m"], farm["hub_height_m"], eng.PANGU_WIND_LEVELS)
 
-    # Use our Pre-2019 VAAWM fine-tuned Pangu (trained 2016-2017) when present;
-    # otherwise fall back to the official pretrained (zero-shot) weights.
+    # Hybrid inference (paper §3.4, the optimal strategy): at every
+    # autoregressive step the *target wind* channels come from our VAAWM
+    # fine-tuned model, while all other variables come from the base
+    # (zero-shot) model. This keeps the localized wind accuracy of the
+    # fine-tune while the balanced base fields prevent drift over the rollout.
+    base = eng.load_model(device, "zeroshot")
     if eng.pre2019_available():
-        variant = "vaawm_pre2019"
-        model_label = "Pre-2019 VAAWM 微调 (2016-2017训练)"
+        ft = eng.load_model(device, "vaawm_pre2019")
+        ft_label = "Pre-2019 VAAWM"
+    elif eng.finetuned_available():
+        ft = eng.load_model(device, "vaawm")
+        ft_label = "VAAWM 微调"
     else:
-        variant = "zeroshot"
-        model_label = "官方预训练 (zero-shot)"
+        ft = None
+        ft_label = None
+    use_hybrid = ft is not None
+    model_label = (f"混合推理（base zero-shot + {ft_label}，目标风场用微调，余用基座）"
+                   if use_hybrid else "官方预训练 (zero-shot)")
 
     if progress:
         progress(f"加载 Pangu 模型：{model_label}（{device}）", 0.02)
-    model = eng.load_model(device, variant)
     aux = eng.load_aux(device)
 
     cur_u, cur_s = eng._state_at(init_date, device)
@@ -93,11 +102,25 @@ def run_forecast(farm, horizon_days=7, init_date=None, factor=5, progress=None):
 
     for k in range(1, horizon_days + 1):
         if progress:
-            progress(f"Pangu 第 {k}/{horizon_days} 步（+{k*24}h）自回归预报", 0.05 + 0.7 * k / horizon_days)
+            step_desc = ("混合推理" if use_hybrid else "Pangu") + \
+                f" 第 {k}/{horizon_days} 步（+{k*24}h）自回归预报"
+            progress(step_desc, 0.05 + 0.7 * k / horizon_days)
         with torch.no_grad():
-            out, outs = model(cur_u, cur_s, aux["weather_statistics"],
-                              aux["constant_maps"], aux["const_h"])
-            out, outs = utils_data.normBackData(out, outs, aux["weather_statistics_last"])
+            ob, osb = base(cur_u, cur_s, aux["weather_statistics"],
+                           aux["constant_maps"], aux["const_h"])
+            ob, osb = utils_data.normBackData(ob, osb, aux["weather_statistics_last"])
+            if use_hybrid:
+                ov, osv = ft(cur_u, cur_s, aux["weather_statistics"],
+                             aux["constant_maps"], aux["const_h"])
+                ov, osv = utils_data.normBackData(ov, osv, aux["weather_statistics_last"])
+                # target wind channels from fine-tuned, everything else from base
+                out, outs = ob.clone(), osb.clone()
+                for ch in eng.TARGET_SURFACE_CH:
+                    outs[:, ch] = osv[:, ch]
+                for ch in eng.TARGET_UPPER_CH:
+                    out[:, ch] = ov[:, ch]
+            else:
+                out, outs = ob, osb
 
         # wind components + speed field at the selected level
         if level == "10m":
