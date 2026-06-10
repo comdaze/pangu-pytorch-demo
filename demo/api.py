@@ -77,19 +77,23 @@ def detect_intent(text):
 
 def analysis_prompt(result):
     f = result["farm"]
-    lines = [f"{t.strftime('%m-%d')}: 风速{w:.1f}m/s, 容量因子{c*100:.0f}%, 出力{p:.0f}MW"
+    step_h = result.get("step_hours", 24)
+    tfmt = "%m-%d" if step_h == 24 else "%m-%d %Hh"
+    res_txt = "逐日" if step_h == 24 else f"逐{step_h}小时"
+    lines = [f"{t.strftime(tfmt)}: 风速{w:.1f}m/s, 容量因子{c*100:.0f}%, 出力{p:.0f}MW"
              for t, w, c, p in zip(result["times"], result["hub_ws"], result["cf"], result["power_mw"])]
     return (
         f"风电场：{f['id']}，装机{f['capacity_mw']:.0f}MW，{f['turbines']}台{f['turbine_model']}，"
         f"轮毂{f['hub_height_m']}m，海拔{f['elevation_m']}m，地形：{f['terrain']}。\n"
         f"预报模型：Pangu {result.get('pangu_model','—')}；降尺度 {result.get('downscale_method','—')}。\n"
+        f"时间分辨率：{res_txt}（步长 {step_h}h）。\n"
         f"选用气压层：{fp._lname(result['level'])}（按海拔自动选取）。\n"
         f"初始场日期：{result['init_date']}，预报时长：{result['horizon_days']}天。\n"
-        f"逐日预报：\n" + "\n".join(lines) + "\n"
+        f"{res_txt}预报：\n" + "\n".join(lines) + "\n"
         f"预报期平均容量因子 {result['mean_cf']*100:.0f}%，累计发电量约 {result['total_energy_mwh']:.0f} MWh。\n\n"
         "请作为风电功率预报专家，对以上结果给出专业分析（中文，分点，简洁）："
         "包括风况与天气形势研判、出力高/低值时段与爬坡(ramp)风险、容量因子评价、"
-        "以及对电力调度/检修安排/电力市场交易的建议。不要重复罗列每日数字。"
+        "以及对电力调度/检修安排/电力市场交易的建议。不要重复罗列每个时刻的数字。"
     )
 
 
@@ -116,19 +120,24 @@ def forecast_figures_md(result):
 
     method = result.get("downscale_method", "bilinear (placeholder)")
     yield f"\n\n##### ③ 降尺度风场（{lname}，{method}）\n"
-    for k, snap in sorted(result["field_snaps"].items()):
-        yield _fig_md(fp.fig_wind_field(snap, farm, k, result["level"]), f"lead +{k*24}h")
+    for lead_h, snap in sorted(result["field_snaps"].items()):
+        yield _fig_md(fp.fig_wind_field(snap, farm, lead_h, result["level"]), f"lead +{lead_h}h")
 
-    yield _fig_md(fp.fig_timeseries(result), "④ 轮毂高度风速 & 逐日出力")
+    step_h = result.get("step_hours", 24)
+    res_txt = "逐日" if step_h == 24 else f"逐{step_h}小时"
+    yield _fig_md(fp.fig_timeseries(result), f"④ 轮毂高度风速 & {res_txt}出力")
     yield _fig_md(fp.fig_power_curve(result), "⑤ 功率曲线与预报落点")
 
-    # ⑥ summary table
-    hdr = ["| 日期 | 轮毂风速(m/s) | 容量因子 | 平均出力(MW) | 日发电量(MWh) |",
+    # ⑥ summary table (adapts to the rollout granularity)
+    tfmt = "%m-%d" if step_h == 24 else "%m-%d %Hh"
+    date_label = "日期" if step_h == 24 else "时刻"
+    energy_label = "日发电量(MWh)" if step_h == 24 else f"{step_h}h发电量(MWh)"
+    hdr = [f"| {date_label} | 轮毂风速(m/s) | 容量因子 | 平均出力(MW) | {energy_label} |",
            "|---|---|---|---|---|"]
     for t, w, c, p, e in zip(result["times"], result["hub_ws"], result["cf"],
                              result["power_mw"], result["daily_energy_mwh"]):
-        hdr.append(f"| {t.strftime('%m-%d')} | {w:.1f} | {c*100:.0f}% | {p:.1f} | {e:.0f} |")
-    yield "\n\n##### ⑥ 逐日预报汇总\n\n" + "\n".join(hdr) + "\n"
+        hdr.append(f"| {t.strftime(tfmt)} | {w:.1f} | {c*100:.0f}% | {p:.1f} | {e:.0f} |")
+    yield f"\n\n##### ⑥ {res_txt}预报汇总\n\n" + "\n".join(hdr) + "\n"
 
 
 class ChatRequest(BaseModel):
@@ -156,6 +165,15 @@ FORECAST_TOOL = {
                     "type": "integer",
                     "description": "预报时长（天），范围 1-10。若用户用小时表述（如 8 小时）请折算并向上取整到天，最少 1 天。默认 7。",
                 },
+                "step_hours": {
+                    "type": "integer",
+                    "enum": [1, 3, 6, 24],
+                    "description": (
+                        "时间分辨率（步长，小时）。24=逐日（默认，采用 VAAWM 混合推理，论文证明 1-5 天最优）；"
+                        "6/3/1=逐 6/3/1 小时（使用官方 zero-shot 模型，无微调）。"
+                        "当用户要求‘逐小时/逐6小时/更细分辨率/小时级’时设为 6 或 1；否则用 24。"
+                    ),
+                },
             },
             "required": ["farm_query"],
         }},
@@ -175,7 +193,7 @@ def _to_bedrock(messages):
             for m in messages]
 
 
-def _run_forecast_stream(info, horizon, box):
+def _run_forecast_stream(info, horizon, box, step_hours=24):
     """Yield markdown (live progress + model chain + figures); store result in box."""
     yield "\n\n##### ⏳ 运行进度\n\n"
     q: "queue.Queue" = queue.Queue()
@@ -185,7 +203,8 @@ def _run_forecast_stream(info, horizon, box):
 
     def worker():
         try:
-            box["result"] = fp.run_forecast(info, horizon_days=horizon, progress=prog)
+            box["result"] = fp.run_forecast(info, horizon_days=horizon,
+                                            step_hours=step_hours, progress=prog)
         except Exception as e:  # noqa: BLE001
             box["error"] = repr(e)
         finally:
@@ -260,6 +279,9 @@ def chat_stream(messages):
         args = {}
     farm_query = str(args.get("farm_query", ""))
     horizon = max(1, min(int(args.get("horizon_days", 7) or 7), 10))
+    step_hours = int(args.get("step_hours", 24) or 24)
+    if step_hours not in (1, 3, 6, 24):
+        step_hours = 24
     farm_name, info = wf.find_farm(farm_query)
 
     assistant_turn = ([{"text": pre_text}] if pre_text.strip() else []) + [
@@ -280,7 +302,7 @@ def chat_stream(messages):
 
     # run the pipeline (stream live progress + figures to the UI)
     box = {}
-    for chunk in _run_forecast_stream(info, horizon, box):
+    for chunk in _run_forecast_stream(info, horizon, box, step_hours=step_hours):
         yield chunk
     if "result" not in box:
         return

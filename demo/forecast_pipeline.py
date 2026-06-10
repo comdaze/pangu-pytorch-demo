@@ -55,79 +55,95 @@ def pick_init_date():
     return dates[-1] if dates else "20190701"
 
 
-def run_forecast(farm, horizon_days=7, init_date=None, factor=5, progress=None):
+def run_forecast(farm, horizon_days=7, init_date=None, factor=5, progress=None,
+                 step_hours=24):
     """Run the full pipeline. Returns a dict of time series + metadata.
 
+    step_hours: rollout granularity.
+        24 -> daily, uses the paper's *hybrid inference* (target wind from the
+              VAAWM fine-tune, the rest from the zero-shot base).
+        1/3/6 -> finer, uses the official *zero-shot* Pangu model of that horizon
+              (we only have a 24h fine-tune, so sub-daily steps are zero-shot).
     progress: optional callable(stage_str, frac) for UI streaming.
     """
     device = eng.get_device()  # 'cpu' when CUDA hidden
     init_date = init_date or pick_init_date()
 
+    step_hours = step_hours if step_hours in (1, 3, 6, 24) else 24
+    total_hours = max(1, int(horizon_days)) * 24
+    n_steps = max(1, total_hours // step_hours)
+    MAX_STEPS = 56  # bound runtime for the demo (~1s/step/model on GPU)
+    n_steps = min(n_steps, MAX_STEPS)
+
     # altitude-aware level selection (Pangu levels)
     level, level_details = wp.select_wind_level(
         farm["elevation_m"], farm["hub_height_m"], eng.PANGU_WIND_LEVELS)
 
-    # Hybrid inference (paper §3.4, the optimal strategy): at every
-    # autoregressive step the *target wind* channels come from our VAAWM
-    # fine-tuned model, while all other variables come from the base
-    # (zero-shot) model. This keeps the localized wind accuracy of the
-    # fine-tune while the balanced base fields prevent drift over the rollout.
-    base = eng.load_model(device, "zeroshot")
-    if eng.pre2019_available():
-        ft = eng.load_model(device, "vaawm_pre2019")
-        ft_label = "Pre-2019 VAAWM"
-    elif eng.finetuned_available():
-        ft = eng.load_model(device, "vaawm")
-        ft_label = "VAAWM 微调"
+    # Daily (24h) -> hybrid inference (paper §3.4): target wind channels from the
+    # VAAWM fine-tune, all other variables from the zero-shot base, to keep
+    # localized wind accuracy while preventing drift. Sub-daily -> zero-shot.
+    zs_horizons = eng.zeroshot_horizons_available()
+    use_hybrid = (step_hours == 24) and (eng.pre2019_available() or eng.finetuned_available())
+    if use_hybrid:
+        base = eng.load_model(device, "zeroshot")
+        if eng.pre2019_available():
+            ft = eng.load_model(device, "vaawm_pre2019"); ft_label = "Pre-2019 VAAWM"
+        else:
+            ft = eng.load_model(device, "vaawm"); ft_label = "VAAWM 微调"
+        aux = eng.load_aux(device)
+        model_label = (f"混合推理（base zero-shot Pangu-24h + {ft_label}，"
+                       f"目标风场用微调，余用基座；逐24h）")
     else:
+        zs_h = step_hours if step_hours in zs_horizons else 24
+        zs = eng.load_model(device, f"zs{zs_h}")
+        aux = eng.load_aux_h(device, zs_h)
         ft = None
-        ft_label = None
-    use_hybrid = ft is not None
-    model_label = (f"混合推理（base zero-shot + {ft_label}，目标风场用微调，余用基座）"
-                   if use_hybrid else "官方预训练 (zero-shot)")
+        model_label = f"zero-shot Pangu-{zs_h}h 自回归（逐{zs_h}h）"
 
     if progress:
         progress(f"加载 Pangu 模型：{model_label}（{device}）", 0.02)
-    aux = eng.load_aux(device)
 
     cur_u, cur_s = eng._state_at(init_date, device)
     t0 = pd.to_datetime(init_date, format="%Y%m%d")
 
     fr, fc = latlon_to_idx(farm["lat"], farm["lon"])
     times, hub_ws_pt, cf_pt = [], [], []
-    field_snaps = {}  # lead_day -> (downscaled_field, extent)
-    snap_days = sorted(set([1, max(1, horizon_days // 2), horizon_days]))
+    field_snaps = {}  # lead_hours -> (downscaled_field, extent)
+    snap_steps = sorted(set([1, max(1, n_steps // 2), n_steps]))
     use_corrdiff = bool(cdi) and cdi.available()
     downscale_method = "CorrDiff (regression+diffusion)" if use_corrdiff else "bilinear (placeholder)"
 
-    for k in range(1, horizon_days + 1):
+    for k in range(1, n_steps + 1):
+        lead_h = step_hours * k
         if progress:
             if use_hybrid:
                 step_desc = (
-                    f"混合推理 第 {k}/{horizon_days} 步 (+{k*24}h)："
+                    f"混合推理 第 {k}/{n_steps} 步 (+{lead_h}h)："
                     f"① 基座 Pangu-24h(zero-shot) 预报全场(z/q/t/msl/t2m)；"
                     f"② {ft_label} 预报目标风场(u/v·u10/v10)；"
                     f"③ 融合(风场取微调，余取基座)→喂回下一步"
                 )
             else:
-                step_desc = f"Pangu-24h(zero-shot) 第 {k}/{horizon_days} 步 (+{k*24}h) 自回归预报"
-            progress(step_desc, 0.05 + 0.7 * k / horizon_days)
+                step_desc = (f"zero-shot Pangu-{step_hours}h 第 {k}/{n_steps} 步 "
+                             f"(+{lead_h}h) 自回归预报")
+            progress(step_desc, 0.05 + 0.7 * k / n_steps)
         with torch.no_grad():
-            ob, osb = base(cur_u, cur_s, aux["weather_statistics"],
-                           aux["constant_maps"], aux["const_h"])
-            ob, osb = utils_data.normBackData(ob, osb, aux["weather_statistics_last"])
             if use_hybrid:
+                ob, osb = base(cur_u, cur_s, aux["weather_statistics"],
+                               aux["constant_maps"], aux["const_h"])
+                ob, osb = utils_data.normBackData(ob, osb, aux["weather_statistics_last"])
                 ov, osv = ft(cur_u, cur_s, aux["weather_statistics"],
                              aux["constant_maps"], aux["const_h"])
                 ov, osv = utils_data.normBackData(ov, osv, aux["weather_statistics_last"])
-                # target wind channels from fine-tuned, everything else from base
                 out, outs = ob.clone(), osb.clone()
                 for ch in eng.TARGET_SURFACE_CH:
                     outs[:, ch] = osv[:, ch]
                 for ch in eng.TARGET_UPPER_CH:
                     out[:, ch] = ov[:, ch]
             else:
-                out, outs = ob, osb
+                out, outs = zs(cur_u, cur_s, aux["weather_statistics"],
+                               aux["constant_maps"], aux["const_h"])
+                out, outs = utils_data.normBackData(out, outs, aux["weather_statistics_last"])
 
         # wind components + speed field at the selected level
         if level == "10m":
@@ -139,7 +155,7 @@ def run_forecast(farm, horizon_days=7, init_date=None, factor=5, progress=None):
             vfield = out[0, 4, li].cpu().numpy()
         wsfield = np.sqrt(ufield ** 2 + vfield ** 2)
 
-        # farm-area wind = 3x3 cell neighbourhood mean (~75 km, robust to single-cell noise)
+        # farm-area wind = 3x3 cell neighbourhood mean (~75 km, robust to noise)
         pt = float(wsfield[max(0, fr - 1):fr + 2, max(0, fc - 1):fc + 2].mean())
         lv = level.lstrip("UV")
         if lv in wp.AGL_LEVELS:
@@ -150,19 +166,19 @@ def run_forecast(farm, horizon_days=7, init_date=None, factor=5, progress=None):
         cf = float(wp.capacity_factor(np.array([pt_hub]),
                                       cut_in=farm["cut_in"], rated=farm["rated"],
                                       cut_out=farm["cut_out"])[0])
-        times.append(t0 + pd.Timedelta(hours=24 * k))
+        times.append(t0 + pd.Timedelta(hours=lead_h))
         hub_ws_pt.append(float(pt_hub))
         cf_pt.append(cf)
 
         # store downscaled regional snapshot at selected leads
-        if k in snap_days:
+        if k in snap_steps:
             su, extent = crop_bbox(ufield, farm["lat"], farm["lon"])
             sv, _ = crop_bbox(vfield, farm["lat"], farm["lon"])
             fine = None
             if use_corrdiff:
                 if progress:
-                    progress(f"CorrDiff 降尺度（regression+diffusion，18步采样，+{k*24}h，25km→5km）",
-                             0.05 + 0.7 * k / horizon_days)
+                    progress(f"CorrDiff 降尺度（regression+diffusion，18步采样，+{lead_h}h，25km→5km）",
+                             0.05 + 0.7 * k / n_steps)
                 try:
                     fine = cdi.downscale_speed(su, sv, device=device)
                 except Exception as e:
@@ -170,10 +186,10 @@ def run_forecast(farm, horizon_days=7, init_date=None, factor=5, progress=None):
                     fine = None
             if fine is None:
                 if progress:
-                    progress(f"双线性插值降尺度（占位，+{k*24}h）", 0.05 + 0.7 * k / horizon_days)
+                    progress(f"双线性插值降尺度（占位，+{lead_h}h）", 0.05 + 0.7 * k / n_steps)
                 sub = np.sqrt(su ** 2 + sv ** 2)
                 fine = wp.downscale(sub, factor=factor, method="bilinear")
-            field_snaps[k] = (fine, extent)
+            field_snaps[lead_h] = (fine, extent)
 
         cur_u, cur_s = out, outs  # feed back
 
@@ -182,8 +198,8 @@ def run_forecast(farm, horizon_days=7, init_date=None, factor=5, progress=None):
 
     cap = farm["capacity_mw"]
     power_mw = [c * cap for c in cf_pt]
-    daily_energy = [p * 24 for p in power_mw]  # MWh/day
-    total_energy = float(np.sum(daily_energy))
+    step_energy = [p * step_hours for p in power_mw]  # MWh per step
+    total_energy = float(np.sum(step_energy))
     mean_cf = float(np.mean(cf_pt))
 
     return {
@@ -196,11 +212,13 @@ def run_forecast(farm, horizon_days=7, init_date=None, factor=5, progress=None):
         "hub_ws": hub_ws_pt,
         "cf": cf_pt,
         "power_mw": power_mw,
-        "daily_energy_mwh": daily_energy,
+        "daily_energy_mwh": step_energy,
         "total_energy_mwh": total_energy,
         "mean_cf": mean_cf,
         "field_snaps": field_snaps,
         "horizon_days": horizon_days,
+        "step_hours": step_hours,
+        "n_steps": n_steps,
         "downscale_method": downscale_method,
         "pangu_model": model_label,
     }
@@ -234,7 +252,7 @@ def fig_region_map(farm):
     return fig
 
 
-def fig_wind_field(snap, farm, lead_day, level):
+def fig_wind_field(snap, farm, lead_h, level):
     import matplotlib.pyplot as plt
     import cartopy.crs as ccrs
     import cartopy.feature as cfeature
@@ -251,7 +269,7 @@ def fig_wind_field(snap, farm, lead_day, level):
     ax.gridlines(draw_labels=True, linewidth=0.3, color="gray", alpha=0.4, linestyle="--")
     cb = plt.colorbar(im, ax=ax, orientation="vertical", pad=0.03, shrink=0.85)
     cb.set_label("wind speed (m/s)", fontsize=8)
-    ax.set_title(f"Downscaled {_lname(level)} wind  ·  lead +{lead_day*24}h", fontsize=10)
+    ax.set_title(f"Downscaled {_lname(level)} wind  ·  lead +{lead_h}h", fontsize=10)
     return fig
 
 
@@ -259,20 +277,24 @@ def fig_timeseries(result):
     import matplotlib.pyplot as plt
     import matplotlib.dates as mdates
     t = result["times"]
+    step_h = result.get("step_hours", 24)
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(9, 5.6), sharex=True)
     ax1.plot(t, result["hub_ws"], "-o", color="#1f77b4", lw=1.8, ms=4)
     ax1.axhline(result["farm"]["rated"], color="green", ls="--", lw=1, label="rated")
     ax1.axhline(result["farm"]["cut_in"], color="orange", ls="--", lw=1, label="cut-in")
     ax1.axhline(result["farm"]["cut_out"], color="red", ls="--", lw=1, label="cut-out")
     ax1.set_ylabel("hub wind speed (m/s)"); ax1.grid(alpha=0.3); ax1.legend(fontsize=8, ncol=3)
+    res_txt = "daily" if step_h == 24 else f"{step_h}-hourly"
     ax1.set_title(f"{result['farm']['id']}  ·  {result['horizon_days']}-day forecast "
-                  f"(from {result['init_date']})", fontsize=11)
-    ax2.bar(t, result["power_mw"], width=0.6, color="#2ca02c", alpha=0.8)
+                  f"({res_txt}, from {result['init_date']})", fontsize=11)
+    bar_w = max(0.02, step_h / 24.0 * 0.6)
+    ax2.bar(t, result["power_mw"], width=bar_w, color="#2ca02c", alpha=0.8)
     ax2.set_ylabel("power (MW)"); ax2.grid(alpha=0.3)
     ax2.set_ylim(0, result["farm"]["capacity_mw"] * 1.05)
     ax2.axhline(result["farm"]["capacity_mw"], color="gray", ls=":", lw=1, label="installed")
     ax2.legend(fontsize=8)
-    ax2.xaxis.set_major_formatter(mdates.DateFormatter("%m-%d"))
+    fmt = "%m-%d" if step_h == 24 else "%m-%d %Hh"
+    ax2.xaxis.set_major_formatter(mdates.DateFormatter(fmt))
     fig.autofmt_xdate()
     return fig
 
