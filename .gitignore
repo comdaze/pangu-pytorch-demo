@@ -25,3 +25,13 @@ corrdiff/multirun/
 corrdiff/checkpoints*/
 *.mdlus
 *.nc
+
+# AWS credentials (never commit)
+.sm_aws_credentials
+.aws/
+
+# Frontend (assistant-ui) build / deps
+demo/web/node_modules/
+demo/web/dist/
+demo/web/.vite/
+demo/web/*.png
