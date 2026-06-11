@@ -3,8 +3,7 @@
 一个面向风电场的对话式功率预报演示：Claude 风格聊天界面，由 Bedrock Claude
 以 **function calling** 驱动，按需运行端到端预报管线并流式输出专业气象图与分析。
 
-> 注：早期基于 Streamlit 的界面（`app.py` / `chat_app.py`）已**弃用并移除**，
-> 现在前端是 React (assistant-ui)，后端是 FastAPI，单服务统一托管并带登录鉴权。
+前端 React (assistant-ui)，后端 FastAPI，单服务统一托管并带登录鉴权。
 
 ## 端到端链路
 

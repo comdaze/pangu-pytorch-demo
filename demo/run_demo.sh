@@ -1,24 +1,25 @@
 #!/bin/bash
-
-# 确保脚本在任何错误时退出
+# Launch the 风眼 demo (FastAPI service serving the assistant-ui frontend + API,
+# behind HTTP Basic Auth). Builds the frontend if needed, then runs uvicorn.
 set -e
 
-# 获取当前脚本所在目录
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
-echo "===== PanGu Weather Forecast Demo ====="
-echo "正在启动Streamlit应用..."
+echo "===== 风眼 · 风电功率预报助手 ====="
 
-# 检查是否已安装所需依赖
-if ! command -v streamlit &> /dev/null; then
-    echo "未检测到Streamlit，正在安装依赖..."
-    pip install -r "$SCRIPT_DIR/requirements.txt"
+# Build the frontend if the production bundle is missing
+if [ ! -f "$SCRIPT_DIR/web/dist/index.html" ]; then
+  echo "构建前端 (web/dist)..."
+  (cd "$SCRIPT_DIR/web" && npm install && npm run build)
 fi
 
-# 添加项目根目录到PYTHONPATH
 export PYTHONPATH="$PROJECT_ROOT:$PYTHONPATH"
+export LD_LIBRARY_PATH="/opt/conda/lib:$LD_LIBRARY_PATH"   # matplotlib/torch libstdc++
+export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"   # GPU inference
+export FENGYAN_USER="${FENGYAN_USER:-admin}"
+export FENGYAN_PASS="${FENGYAN_PASS:-pangu-wind-2026}"
 
-# 启动Streamlit应用
 cd "$SCRIPT_DIR"
-streamlit run app.py
+echo "启动 FastAPI 服务于 http://0.0.0.0:8000 （登录: $FENGYAN_USER）"
+exec uvicorn api:app --host 0.0.0.0 --port 8000

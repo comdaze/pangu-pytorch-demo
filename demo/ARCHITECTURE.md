@@ -24,18 +24,22 @@ Variable-Specific Adaptation of Weather Foundation Models》(VAAWM) 的核心贡
 
 | 文件 | 作用 |
 |---|---|
-| `app.py` | Streamlit 交互界面（8 页，全中文） |
+| `api.py` | FastAPI 服务：Bedrock Claude 工具调用编排、流式进度+图、托管前端静态、HTTP Basic Auth、`/healthz` |
+| `web/` | Vite + React + assistant-ui（Claude 主题）前端 |
+| `llm.py` | Bedrock Claude (Converse / tool use) 封装 |
+| `forecast_pipeline.py` | 端到端预报管线：混合/zero-shot 自回归、CorrDiff 降尺度、选层、功率换算、专业出图 |
+| `corrdiff_infer.py` | CorrDiff 两阶段（regression + diffusion）降尺度推理封装 |
+| `wind_farms.py` | 新疆/浙江风电场清单（mock） |
 | `paper_data.py` | 论文表 1-4 的真实 RMSE、区域定义、变量权重 |
 | `regions.py` | 区域掩码构造（与 `custom_mask.ipynb` 逻辑一致）+ 地图绘制 |
-| `inference_engine.py` | 真实推理、混合推理、掩码加权 RMSE、多步自回归滚动、留出集评估 |
-| `wind_power.py` | 风电链路 stage 2（降尺度接口/占位插值）+ stage 3（轮毂外推 + 功率曲线） |
+| `inference_engine.py` | 模型加载（zeroshot/vaawm/vaawm_pre2019/各时效 zs）、真实推理、混合推理、掩码加权 RMSE、多步自回归、留出集评估 |
+| `wind_power.py` | 风电链路 stage 2（降尺度接口）+ stage 3（轮毂外推 + IEC 功率曲线） |
 | `finetune_vaawm.py` | 忠实小规模 VAAWM 微调（仓库原损失：归一化风速 L1 + 掩码，train/val 早停） |
 | `finetune_vaawm_paper.py` | 更贴近论文的 VAAWM（全变量 MSE + 软 β + α，避免灾难性遗忘） |
 | `fetch_era5_upper.py` | 从公开 ARCO-ERA5 抓取额外 upper 时刻 |
 | `run_pipeline.py` | 2019 多月：下载 → 微调 → 留出集评估（无人值守） |
 | `run_pipeline_pre2019.py` | 论文 Pre-2019 协议：训 2016-2017 / 验 2019 / 测 2018 |
-| `app_mock_legacy.py` | 原始的随机数 mock demo 备份（不再使用） |
-| `utils.py` | 原 demo 的可视化/指标工具（部分仍被 legacy 引用） |
+| `ops/` | S3 备份/恢复脚本、systemd 单元、部署文档（`DEPLOY.md`） |
 
 ---
 
@@ -54,15 +58,18 @@ Variable-Specific Adaptation of Weather Foundation Models》(VAAWM) 的核心贡
 调用关系示意：
 
 ```
-demo/app.py
-  └─ demo/inference_engine.py
-        ├─ models.pangu_model.PanguModel        (原始)
-        ├─ models.pangu_sample.get_wind_speed   (原始)
-        ├─ era5_data.utils_data (NetCDFDataset, normData, loadAllConstants)  (原始)
-        ├─ era5_data.score.weighted_rmse_torch_channels                      (原始)
-        └─ era5_data.config.cfg                                              (原始)
-  └─ demo/wind_power.py        (stage2 降尺度占位 + stage3 功率曲线，纯新增)
-  └─ demo/regions.py / paper_data.py   (纯新增)
+浏览器 (React assistant-ui, demo/web)
+  └─ FastAPI demo/api.py  (Basic Auth + 流式)
+        ├─ demo/llm.py → Bedrock Claude (tool calling)
+        └─ demo/forecast_pipeline.py        (端到端预报编排)
+              ├─ demo/inference_engine.py
+              │     ├─ models.pangu_model.PanguModel        (原始)
+              │     ├─ era5_data.utils_data (normBackData, loadAllConstants...)  (原始)
+              │     ├─ era5_data.score.weighted_rmse_torch_channels             (原始)
+              │     └─ era5_data.config.cfg                                     (原始)
+              ├─ demo/corrdiff_infer.py → PhysicsNeMo (regression + diffusion)
+              ├─ demo/wind_power.py     (选层 + 轮毂外推 + IEC 功率曲线)
+              └─ demo/regions.py / paper_data.py
 ```
 
 ---
@@ -85,25 +92,29 @@ demo/app.py
 
 ## 五、数据与权重位置（不在仓库内，已被 .gitignore 排除）
 
-均位于 `/opt/dlami/nvme`（由 `cfg.GLOBAL.PATH` 自动探测）：
+均位于 `/opt/dlami/nvme`（由 `cfg.GLOBAL.PATH` 自动探测；实例临时盘，已用 S3 备份，见 `ops/`）：
 
-- `pretrained_model/pangu_weather_24_torch.pth`：官方预训练权重（horizon=24）
-- `aux_data/`：统计量、常量掩码、`custom_mask.npy`（新疆）、`const_h`
-- `upper/upper_YYYYMMDD.nc`、`surface/surface_YYYYMM.nc`：ERA5 样本（HuggingFace + ARCO-ERA5）
-- `model/finetune_vaawm/24/*.pth`：各次微调产出的检查点
-  - `vaawm_finetuned.pth`（5 天）、`vaawm_multimonth.pth`（2019 多月）、`vaawm_paper.pth`、
-    `vaawm_pre2019.pth`（论文协议，训练中）
+- `pretrained_model/pangu_weather_{1,3,6,24}_torch.pth`：官方预训练权重（4 个时效，由 ONNX 转换）
+- `aux_data/`：统计量、各时效常量掩码 `constantMask{1,3,6,24}.npy`、`custom_mask.npy`（新疆）、`const_h`
+- `upper/upper_YYYYMMDD.nc`、`surface/surface_YYYYMM.nc`：ERA5 样本（HuggingFace + ARCO-ERA5，2016–2019）
+- `model/finetune_vaawm/24/*.pth`：各次微调产出
+  - `vaawm_finetuned.pth`（5 天）、`vaawm_multimonth.pth`（2019 多月）、`vaawm_paper.pth`、`vaawm_pre2019.pth`（论文协议）
+- `corrdiff_reg/`、`corrdiff_diff/`：SageMaker 训练的 CorrDiff regression / diffusion 检查点（亦在 S3 作业输出）
 
 ---
 
 ## 六、运行
 
 ```bash
-# 启动交互式 demo（需 GPU 才能跑第 ⑥⑦⑧ 页的真实推理）
+# 后端（FastAPI，单服务托管前端 + API；需 GPU 跑真实推理）
 cd demo
 LD_LIBRARY_PATH=/opt/conda/lib PYTHONPATH=.. \
-  streamlit run app.py --server.port 8501 --server.address 0.0.0.0
+  FENGYAN_USER=admin FENGYAN_PASS=<your-pass> \
+  uvicorn api:app --host 0.0.0.0 --port 8000
+# 前端开发态： cd demo/web && npm run dev   （生产态 npm run build 后由 api.py 托管）
 ```
+
+长期部署（systemd + ALB + 登录、临时盘 S3 自动恢复）见 `ops/DEPLOY.md`。
 
 > 注：`LD_LIBRARY_PATH=/opt/conda/lib` 用于让 pip 安装的 matplotlib/torch 链接到
 > conda 的新版 `libstdc++`（系统自带版本缺少 `CXXABI_1.3.15`）。

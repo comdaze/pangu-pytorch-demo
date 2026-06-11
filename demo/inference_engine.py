@@ -85,7 +85,7 @@ def list_input_dates():
     return valid
 
 
-# ---- cached heavy objects (filled by the Streamlit layer) -------------------
+# ---- cached heavy objects (loaded lazily on first use) -------------------
 _MODELS = {}
 _AUX = None
 
